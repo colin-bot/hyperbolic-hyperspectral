@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torch import from_numpy
 from scipy import ndimage
-
+from torch import save
 
 def excel_line_to_img(excel_line, img_type='rgb'):
     filepath = excel_line['cube_loc'].split('/')[-2:]
@@ -121,7 +121,7 @@ def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix'):
 
     n_samples = 20 # TODO change to nr of excel lines
 
-    for i in range(16,20):
+    for i in range(n_samples):
         kiwi = Kiwi(excel_lines.iloc[i], img_type=sample_type)
         samples.append(kiwi.img)
         if (label_type == 'brix'):
@@ -154,6 +154,7 @@ class KiwiDataset(Dataset):
 def main():
     excel_lines_dataset = pd.read_excel(DATASET_DIR + 'HSI_dataset_info.xlsx')
     dataset = KiwiDataset(excel_lines_dataset, sample_type='spec')
+    save(dataset, './kiwi_dataset_2.pt')
     print(len(dataset))
 
 
