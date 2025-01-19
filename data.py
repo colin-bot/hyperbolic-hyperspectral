@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, DataLoader
 from torch import from_numpy
 from scipy import ndimage
 from torch import save
+from sklearn.metrics import r2_score
+
 
 def excel_line_to_img(excel_line, img_type='rgb'):
     filepath = excel_line['cube_loc'].split('/')[-2:]
@@ -109,19 +111,22 @@ class Kiwi:
         self.treatment = excel_line['treatment']
 
         # print(excel_line)
-        self.img = excel_line_to_img(excel_line, img_type=img_type)
+        if img_type=='none':
+            self.img = None
+        else:
+            self.img = excel_line_to_img(excel_line, img_type=img_type)
 
     def __str__(self):
         return f'Kiwi {self.id}' #TODO add more info
 
 
-def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix'):
+def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix', n_samples=100, sample_idx=7):
     samples = []
     labels = []
 
-    n_samples = 20 # TODO change to nr of excel lines
+    print(sample_idx * n_samples, (sample_idx + 1) * n_samples)
 
-    for i in range(n_samples):
+    for i in range(sample_idx * n_samples, (sample_idx + 1) * n_samples):
         kiwi = Kiwi(excel_lines.iloc[i], img_type=sample_type)
         samples.append(kiwi.img)
         if (label_type == 'brix'):
@@ -135,6 +140,7 @@ def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix'):
     labels = np.array(labels)
 
     return from_numpy(samples), from_numpy(labels)
+
 
 class KiwiDataset(Dataset):
     def __init__(self, excel_lines, sample_type='rgb', label_type='brix'):
@@ -151,11 +157,95 @@ class KiwiDataset(Dataset):
         return self.samples.shape[0]
 
 
+def excel_to_plots(excel_lines):
+    n_samples = len(excel_lines)
+
+    kiwis = []
+
+    for i in range(n_samples):
+        kiwi = Kiwi(excel_lines.iloc[i], img_type='none')
+        kiwis.append(kiwi)
+
+    brixes = {}
+    penetros = {}
+    awetas = {}
+    
+    brixes_l = []
+    penetros_l = []
+    awetas_l = []
+
+
+    for kiwi in kiwis:        
+        if kiwi.date not in brixes.keys():
+            brixes[kiwi.date] = [kiwi.brix]
+        else:
+            brixes[kiwi.date].append(kiwi.brix)
+
+        if kiwi.date not in penetros.keys():
+            penetros[kiwi.date] = [kiwi.penetro]
+        else:
+            penetros[kiwi.date].append(kiwi.penetro)
+
+        if kiwi.date not in awetas.keys():
+            awetas[kiwi.date] = [kiwi.aweta]
+        else:
+            awetas[kiwi.date].append(kiwi.aweta)
+        
+        brixes_l.append(kiwi.brix)
+        penetros_l.append(kiwi.penetro)
+        awetas_l.append(kiwi.aweta)
+    
+    for date in penetros.keys():
+        plt.scatter(penetros[date], awetas[date])
+    
+    plt.xlabel('penetro')
+    plt.ylabel('aweta')
+    plt.show()
+
+
+    for date in penetros.keys():
+        plt.scatter(penetros[date], brixes[date])
+    
+    plt.xlabel('penetro')
+    plt.ylabel('brix')
+    plt.show()
+
+    print(awetas_l[:10])
+    print(penetros_l[:10])
+    print('r2 brix-aweta:', r2_score(brixes_l, awetas_l))
+    print('r2 aweta-brix:', r2_score(awetas_l, brixes_l))
+    print('r2 brix-penetro:', r2_score(brixes_l, penetros_l))
+    print('r2 penetro-brix:', r2_score(penetros_l, brixes_l))
+    print('r2 aweta-penetro:', r2_score(awetas_l, penetros_l))
+    print('r2 penetro-aweta:', r2_score(penetros_l, awetas_l))
+
+    awetas_l = np.array(awetas_l)
+    awetas_l -= np.mean(awetas_l)
+    awetas_l /= np.std(awetas_l)    
+    penetros_l = np.array(penetros_l)
+    penetros_l -= np.mean(penetros_l)
+    penetros_l /= np.std(penetros_l)    
+    brixes_l = np.array(brixes_l)
+    brixes_l -= np.mean(brixes_l)
+    brixes_l /= np.std(brixes_l)
+
+    print(awetas_l[:10])
+    print(penetros_l[:10])
+    print('r2 brix-aweta:', r2_score(brixes_l, awetas_l))
+    print('r2 aweta-brix:', r2_score(awetas_l, brixes_l))
+    print('r2 brix-penetro:', r2_score(brixes_l, penetros_l))
+    print('r2 penetro-brix:', r2_score(penetros_l, brixes_l))
+    print('r2 aweta-penetro:', r2_score(awetas_l, penetros_l))
+    print('r2 penetro-aweta:', r2_score(penetros_l, awetas_l))
+
+
 def main():
     excel_lines_dataset = pd.read_excel(DATASET_DIR + 'HSI_dataset_info.xlsx')
     dataset = KiwiDataset(excel_lines_dataset, sample_type='spec')
-    save(dataset, './kiwi_dataset_2.pt')
+    save(dataset, './data/kiwi_dataset_700-800.pt')
     print(len(dataset))
+
+    # excel_to_plots(excel_lines_dataset)
 
 
 if __name__ == "__main__":
