@@ -2,6 +2,8 @@
 # https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 
 
+import torch
+
 from data import KiwiDataset
 from torch import load
 from torch.utils.data import ConcatDataset
@@ -23,7 +25,6 @@ testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
                                          shuffle=False, num_workers=2)
 
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
