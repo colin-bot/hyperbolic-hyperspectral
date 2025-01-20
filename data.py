@@ -120,13 +120,13 @@ class Kiwi:
         return f'Kiwi {self.id}' #TODO add more info
 
 
-def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix', n_samples=100, sample_idx=7):
+def make_kiwi_dataset(excel_lines, sample_type='rgb', label_type='brix', n_samples=100, sample_idx=10):
     samples = []
     labels = []
 
     print(sample_idx * n_samples, (sample_idx + 1) * n_samples)
 
-    for i in range(sample_idx * n_samples, (sample_idx + 1) * n_samples):
+    for i in range(1100, 1172):
         kiwi = Kiwi(excel_lines.iloc[i], img_type=sample_type)
         samples.append(kiwi.img)
         if (label_type == 'brix'):
@@ -241,8 +241,11 @@ def excel_to_plots(excel_lines):
 
 def main():
     excel_lines_dataset = pd.read_excel(DATASET_DIR + 'HSI_dataset_info.xlsx')
+
+    # print(len(excel_lines_dataset))
+
     dataset = KiwiDataset(excel_lines_dataset, sample_type='spec')
-    save(dataset, './data/kiwi_dataset_700-800.pt')
+    save(dataset, './data/kiwi_dataset_1100-1172.pt')
     print(len(dataset))
 
     # excel_to_plots(excel_lines_dataset)
