@@ -15,7 +15,7 @@ concatenated_dataset = ConcatDataset(dataset_list)
 
 batch_size = 4
 
-train_set, test_set = torch.utils.data.random_split(concatenated_dataset, [16, 4])
+train_set, test_set = torch.utils.data.random_split(concatenated_dataset, [1100, 72])
 
 trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
