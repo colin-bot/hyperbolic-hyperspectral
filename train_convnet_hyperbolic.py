@@ -8,8 +8,8 @@ from torch.utils.data import ConcatDataset
 
 dataset_list = []
 for i in range(11):
-    dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}'))
-dataset_list.append(load(f'data/kiwi_dataset_1100-1172'))
+    dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
+dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
 
 concatenated_dataset = ConcatDataset(dataset_list)
 
