@@ -46,6 +46,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
+        x = torch.flatten(x) # for MSELoss
         return x
 
 
@@ -79,4 +80,24 @@ for epoch in range(2):  # loop over the dataset multiple times
             running_loss = 0.0
 
 print('Finished Training')
+
+# PATH = './test_convnet.pth'
+# torch.save(net.state_dict(), PATH)
+# 
+# net = Net()
+# net.load_state_dict(torch.load(PATH, weights_only=True))
+
+total_loss = 0.
+n_examples = 0
+# since we're not training, we don't need to calculate the gradients for our outputs
+with torch.no_grad():
+    for data in testloader:
+        inputs, labels = data
+        # calculate outputs by running images through the network
+        outputs = net(inputs)
+        loss = criterion(outputs, labels)
+        total_loss += loss
+        n_examples += len(labels)
+
+print(f'Average MSE: {total_loss / n_examples}')
 
