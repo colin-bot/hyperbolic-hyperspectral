@@ -35,15 +35,15 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = hnn.HConvolution2d(
-            in_channels=3, out_channels=6, kernel_size=5, manifold=manifold
+            in_channels=180, out_channels=10, kernel_size=5, manifold=manifold
         )
         self.pool = hnn.HMaxPool2d(kernel_size=2, manifold=manifold, stride=2)
         self.conv2 = hnn.HConvolution2d(
-            in_channels=6, out_channels=16, kernel_size=5, manifold=manifold
+            in_channels=10, out_channels=5, kernel_size=5, manifold=manifold
         )
-        self.fc1 = hnn.HLinear(in_features=16 * 5 * 5, out_features=120, manifold=manifold)
-        self.fc2 = hnn.HLinear(in_features=120, out_features=84, manifold=manifold)
-        self.fc3 = hnn.HLinear(in_features=84, out_features=10, manifold=manifold)
+        self.fc1 = hnn.HLinear(in_features=10080, out_features=128, manifold=manifold)
+        self.fc2 = hnn.HLinear(in_features=128, out_features=64, manifold=manifold)
+        self.fc3 = hnn.HLinear(in_features=64, out_features=1, manifold=manifold)
         self.relu = hnn.HReLU(manifold=manifold)
 
     def forward(self, x):
@@ -53,6 +53,7 @@ class Net(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
+        x = x.flatten()
         return x
 
 
@@ -62,7 +63,7 @@ net = Net()
 from hypll.optim import RiemannianAdam
 
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.MSELoss()
 optimizer = RiemannianAdam(net.parameters(), lr=0.001, momentum=0.9)
 
 
@@ -95,3 +96,38 @@ for epoch in range(2):  # loop over the dataset multiple times
             running_loss = 0.0
 
 print("Finished Training")
+
+PATH = './models/test_convnet_hyper.pth'
+torch.save(net.state_dict(), PATH)
+
+net = Net()
+net.load_state_dict(torch.load(PATH, weights_only=True))
+
+total_loss = 0.
+n_examples = 0
+# since we're not training, we don't need to calculate the gradients for our outputs
+all_labels = []
+predicted_labels = []
+with torch.no_grad():
+    for data in testloader:
+        inputs, labels = data
+
+        # move the inputs to the manifold
+        tangents = TangentTensor(data=inputs, man_dim=1, manifold=manifold)
+        manifold_inputs = manifold.expmap(tangents)
+
+        # calculate outputs by running images through the network
+        outputs = net(manifold_inputs)
+        loss = criterion(outputs, labels)
+        total_loss += loss
+        n_examples += len(labels)
+        all_labels += labels.tolist()
+        predicted_labels += outputs.tolist()
+
+print(f'Average MSE: {total_loss / n_examples}')
+
+from sklearn.metrics import r2_score
+
+r2 = r2_score(all_labels, predicted_labels)
+
+print(f'R2: {r2}')
