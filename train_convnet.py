@@ -57,7 +57,7 @@ import torch.optim as optim
 criterion = nn.MSELoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-for epoch in range(2):  # loop over the dataset multiple times
+for epoch in range(10):  # loop over the dataset multiple times
 
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
@@ -81,15 +81,17 @@ for epoch in range(2):  # loop over the dataset multiple times
 
 print('Finished Training')
 
-# PATH = './test_convnet.pth'
-# torch.save(net.state_dict(), PATH)
-# 
-# net = Net()
-# net.load_state_dict(torch.load(PATH, weights_only=True))
+PATH = './models/test_convnet_10eps.pth'
+torch.save(net.state_dict(), PATH)
+
+net = Net()
+net.load_state_dict(torch.load(PATH, weights_only=True))
 
 total_loss = 0.
 n_examples = 0
 # since we're not training, we don't need to calculate the gradients for our outputs
+all_labels = []
+predicted_labels = []
 with torch.no_grad():
     for data in testloader:
         inputs, labels = data
@@ -98,6 +100,13 @@ with torch.no_grad():
         loss = criterion(outputs, labels)
         total_loss += loss
         n_examples += len(labels)
+        all_labels += labels.tolist()
+        predicted_labels += outputs.tolist()
 
 print(f'Average MSE: {total_loss / n_examples}')
 
+from sklearn.metrics import r2_score
+
+r2 = r2_score(all_labels, predicted_labels)
+
+print(f'R2: {r2}')
