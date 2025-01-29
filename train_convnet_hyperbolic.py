@@ -1,7 +1,7 @@
 # based on PyTorch's example
 # https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 
-
+import torch
 from data import KiwiDataset
 from torch import load
 from torch.utils.data import ConcatDataset
@@ -28,7 +28,7 @@ manifold = PoincareBall(c=Curvature(requires_grad=True))
 
 import torch
 import torch.nn as nn
-import hypll as hnn
+from hypll import nn as hnn
 
 
 class Net(nn.Module):
@@ -64,44 +64,44 @@ from hypll.optim import RiemannianAdam
 
 
 criterion = nn.MSELoss()
-optimizer = RiemannianAdam(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = RiemannianAdam(net.parameters(), lr=0.001)
 
 
 
 from hypll.tensors import TangentTensor
 
-for epoch in range(2):  # loop over the dataset multiple times
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
+# for epoch in range(2):  # loop over the dataset multiple times
+#     running_loss = 0.0
+#     for i, data in enumerate(trainloader, 0):
+#         # get the inputs; data is a list of [inputs, labels]
+#         inputs, labels = data
 
-        # move the inputs to the manifold
-        tangents = TangentTensor(data=inputs, man_dim=1, manifold=manifold)
-        manifold_inputs = manifold.expmap(tangents)
+#         # move the inputs to the manifold
+#         tangents = TangentTensor(data=inputs, man_dim=1, manifold=manifold)
+#         manifold_inputs = manifold.expmap(tangents)
 
-        # zero the parameter gradients
-        optimizer.zero_grad()
+#         # zero the parameter gradients
+#         optimizer.zero_grad()
 
-        # forward + backward + optimize
-        outputs = net(manifold_inputs)
-        loss = criterion(outputs.tensor, labels)
-        loss.backward()
-        optimizer.step()
+#         # forward + backward + optimize
+#         outputs = net(manifold_inputs)
+#         loss = criterion(outputs.tensor, labels)
+#         loss.backward()
+#         optimizer.step()
 
-        # print statistics
-        running_loss += loss.item()
-        if i % 2000 == 1999:  # print every 2000 mini-batches
-            print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
-            running_loss = 0.0
+#         # print statistics
+#         running_loss += loss.item()
+#         if i % 100 == 0:  # print every 2000 mini-batches
+#             print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
+#             running_loss = 0.0
 
-print("Finished Training")
+# print("Finished Training")
 
 PATH = './models/test_convnet_hyper.pth'
-torch.save(net.state_dict(), PATH)
+# torch.save(net.state_dict(), PATH)
 
 net = Net()
-net.load_state_dict(torch.load(PATH, weights_only=True))
+# net.load_state_dict(torch.load(PATH))
 
 total_loss = 0.
 n_examples = 0
@@ -118,11 +118,11 @@ with torch.no_grad():
 
         # calculate outputs by running images through the network
         outputs = net(manifold_inputs)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs.tensor, labels)
         total_loss += loss
         n_examples += len(labels)
         all_labels += labels.tolist()
-        predicted_labels += outputs.tolist()
+        predicted_labels += outputs.tensor.tolist()
 
 print(f'Average MSE: {total_loss / n_examples}')
 

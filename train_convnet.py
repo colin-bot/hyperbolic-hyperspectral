@@ -57,7 +57,7 @@ import torch.optim as optim
 criterion = nn.MSELoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-for epoch in range(10):  # loop over the dataset multiple times
+for epoch in range(20):  # loop over the dataset multiple times
 
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
@@ -81,7 +81,7 @@ for epoch in range(10):  # loop over the dataset multiple times
 
 print('Finished Training')
 
-PATH = './models/test_convnet_10eps.pth'
+PATH = './models/test_convnet_20eps.pth'
 torch.save(net.state_dict(), PATH)
 
 net = Net()
