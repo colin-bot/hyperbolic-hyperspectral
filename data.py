@@ -219,6 +219,11 @@ def excel_to_plots(excel_lines):
     print('r2 aweta-penetro:', r2_score(awetas_l, penetros_l))
     print('r2 penetro-aweta:', r2_score(penetros_l, awetas_l))
 
+    np.save('data/brixes.npy', np.array(brixes_l))    
+    np.save('data/awetas.npy', np.array(awetas_l))    
+    np.save('data/penetros.npy', np.array(penetros_l))    
+    print(len(awetas_l), len(brixes_l), len(penetros_l))
+
     awetas_l = np.array(awetas_l)
     awetas_l -= np.mean(awetas_l)
     awetas_l /= np.std(awetas_l)    
@@ -244,11 +249,11 @@ def main():
 
     # print(len(excel_lines_dataset))
 
-    dataset = KiwiDataset(excel_lines_dataset, sample_type='spec')
-    save(dataset, './data/kiwi_dataset_1100-1172.pt')
-    print(len(dataset))
+    # dataset = KiwiDataset(excel_lines_dataset, sample_type='spec')
+    # save(dataset, './data/kiwi_dataset_1100-1172.pt')
+    # print(len(dataset))
 
-    # excel_to_plots(excel_lines_dataset)
+    excel_to_plots(excel_lines_dataset)
 
 
 if __name__ == "__main__":
