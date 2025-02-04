@@ -5,6 +5,10 @@ import torch
 from numpy import load as npload
 
 
+def z_score(tens):
+    return (tens - torch.mean(tens, dim=3, keepdim=True)) / torch.std(tens, dim=3, keepdim=True)
+
+
 def load_dataset(label_type='brix'):
     if label_type=='brix':
         labels_arr = npload('data/brixes.npy')
@@ -17,10 +21,12 @@ def load_dataset(label_type='brix'):
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
         dataset_tmp = load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
+        dataset_tmp.samples = z_score(dataset_tmp)
         dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
     dataset_tmp = load(f'data/kiwi_dataset_1100-1172.pt')
+    dataset_tmp.samples = z_score(dataset_tmp)
     dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
     dataset_list.append(dataset_tmp)
 

@@ -16,4 +16,4 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 
 # bash less/scripts/train/lora_train.sh "$TRAIN_FILES" "$MODEL_PATH" "$JOB_NAME" 
-python3 train_convnet.py --dataset_label_type penetro --n_epochs 2 --eval_only 
+python3 train_convnet.py --dataset_label_type penetro --n_epochs 2 --classification --eval_only --plot_preds
