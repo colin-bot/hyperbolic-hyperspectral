@@ -5,7 +5,8 @@
 import torch
 
 from data import KiwiDataset
-from torch.utils.data import ConcatDataset
+from load_data import load_dataset
+
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,40 +15,8 @@ from sklearn.metrics import r2_score
 import argparse
 import matplotlib.pyplot as plt
 
+
 N_BINS=20
-
-
-def z_score(tens):
-    return (tens - torch.mean(tens, dim=3, keepdim=True)) / torch.std(tens, dim=3, keepdim=True)
-
-
-def load_dataset(label_type='brix', classification=False):
-    if label_type=='brix':
-        labels_arr = np.load('data/brixes.npy')
-    if label_type=='aweta':
-        labels_arr = np.load('data/awetas.npy')
-    if label_type=='penetro':
-        labels_arr = np.load('data/penetros.npy')
-
-    if classification:
-        _, bin_edges = np.histogram(labels_arr, bins=N_BINS)
-        labels_arr = np.digitize(labels_arr, bin_edges[1:-1])
-
-    dataset_list = []
-    for i in range(11):
-        # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = torch.load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
-        dataset_tmp.samples = z_score(dataset_tmp)
-        dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
-        dataset_list.append(dataset_tmp)
-    # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = torch.load(f'data/kiwi_dataset_1100-1172.pt')
-    dataset_tmp.samples = z_score(dataset_tmp)
-    dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
-    dataset_list.append(dataset_tmp)
-
-    concatenated_dataset = ConcatDataset(dataset_list)
-    return concatenated_dataset
 
 
 class RegressionNet(nn.Module):
@@ -70,6 +39,7 @@ class RegressionNet(nn.Module):
         x = torch.flatten(x) # for MSELoss
         return x
 
+
 class ClassificationNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -90,18 +60,27 @@ class ClassificationNet(nn.Module):
         return x
 
 
-def run_baseline(args):
+def train(args):
     ## DATALOADERS ##
-    dataset = load_dataset(label_type=args.dataset_label_type, classification=args.classification)
+    dataset = load_dataset(label_type=args.dataset_label_type, classification=args.classification, n_bins=N_BINS)
 
     batch_size = 4
 
-    train_set, test_set = torch.utils.data.random_split(dataset, [1100, 72])
+    train_size = 1100
+    test_size = 72
 
+    if args.set_data_split:
+        train_set = torch.utils.data.Subset(dataset, range(train_size))
+        test_set = torch.utils.data.Subset(dataset, range(train_size, train_size+test_size))
+    else:
+        train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+
+    shuffle = not args.set_data_split
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
-                                              shuffle=True, num_workers=2)
+                                              shuffle=shuffle, num_workers=2)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
-                                             shuffle=False, num_workers=2)
+                                             shuffle=shuffle, num_workers=2)
 
     ## TRAIN ## 
     if args.classification:
@@ -122,7 +101,11 @@ def run_baseline(args):
         else:
             net = RegressionNet()
     
-        optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+        optimizer = optim.SGD(net.parameters(), lr=0.0001, momentum=0.9)
+
+        print("Starting Training!")
+
+        nan_ctr=0
 
         for epoch in range(args.n_epochs):  # loop over the dataset multiple times
 
@@ -136,19 +119,33 @@ def run_baseline(args):
 
                 # forward + backward + optimize
                 outputs = net(inputs)
-                
+                if torch.isnan(outputs).any():
+                    print(outputs)
+                    print(torch.isnan(inputs).any())
+                    print(torch.isnan(inputs).sum())
+                    print('output is a nan yo')
+                    print(i)
+                    break
+
+
                 if args.classification: labels = labels.long()
 
                 loss = criterion(outputs, labels)
+                if torch.isnan(loss):
+                    print(loss)
+                    print(labels)
+                    nan_ctr += 1
+
                 loss.backward()
                 optimizer.step()
 
                 # print statistics
                 running_loss += loss.item()
-                if i % 2000 == 1999:    # print every 2000 mini-batches
-                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+                if i % 100 == 99:    # print every 100 mini-batches
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
 
+        print(f'{nan_ctr} NaNs')
         print('Finished Training')
 
         torch.save(net.state_dict(), model_path)
@@ -209,9 +206,13 @@ def main():
     parser.add_argument("--eval_only", action='store_true')
     parser.add_argument("--plot_preds", action='store_true')
     parser.add_argument("--classification", action='store_true')
+    parser.add_argument("--set_data_split", action='store_true')
+    
     args = parser.parse_args()
-    print(args.eval_only)
-    run_baseline(args)
+    print(args)
+
+    train(args)
+
 
 if __name__ == "__main__":
     main()
