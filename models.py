@@ -106,7 +106,6 @@ class ResNet(nn.Module):
         return out
 
 
-
 def get_model(args, n_classes=2):
     if args.resnet:
         model = resnet18()

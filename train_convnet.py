@@ -5,8 +5,7 @@
 import torch
 
 from data import KiwiDataset
-from load_data import load_dataset
-from load_data import load_dummy_dataset, load_median_dataset
+from load_data import get_dataset
 from models import get_model
 
 import random
@@ -19,9 +18,6 @@ import argparse
 import matplotlib.pyplot as plt
 
 
-N_BINS=20
-
-
 def train(args):
     if args.seed != 0:
         torch.manual_seed(args.seed)
@@ -29,26 +25,10 @@ def train(args):
         random.seed(args.seed)
 
     ## DATALOADERS ##
-    if args.dataset_label_type == "dummy":
-        dataset = load_dummy_dataset()
-        train_size = 180
-        test_size = 20
-        n_classes = 2
-    elif "median" in args.dataset_label_type:
-        print(args.dataset_label_type)
-        dataset = load_median_dataset(label_type=args.dataset_label_type.split('_')[1])
-        train_size = 1100
-        test_size = 72
-        n_classes = 2
-    else:
-        dataset = load_dataset(label_type=args.dataset_label_type, classification=args.classification, n_bins=N_BINS)
-        train_size = 1100
-        test_size = 72
-        n_classes = N_BINS
-
-
+    dataset, train_size, test_size, n_classes = get_dataset(args)
     print(f'dataset size {len(dataset)}')
-    batch_size = 4
+
+    batch_size = args.batch_size
 
     if args.set_data_split:
         train_set = torch.utils.data.Subset(dataset, range(train_size))
@@ -183,6 +163,8 @@ def main():
     parser.add_argument("--resnet", action='store_true')
     parser.add_argument("--set_data_split", action='store_true')
     parser.add_argument("--seed", type=int, default=0) # 0 = NO SEED!
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
 
     args = parser.parse_args()
     print(args)
