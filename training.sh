@@ -13,6 +13,4 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-
-# bash less/scripts/train/lora_train.sh "$TRAIN_FILES" "$MODEL_PATH" "$JOB_NAME" 
-python3 train_convnet.py --dataset_label_type median_penetro --n_epochs 10 --classification --seed 3
+python3 train_convnet.py --dataset_label_type median_aweta --n_epochs 10 --classification --resnet --seed 1

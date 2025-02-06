@@ -7,7 +7,7 @@ import torch
 from data import KiwiDataset
 from load_data import load_dataset
 from load_data import load_dummy_dataset, load_median_dataset
-from models import RegressionNet, ClassificationNet
+from models import get_model
 
 import random
 import numpy as np
@@ -68,7 +68,12 @@ def train(args):
     else:
         pathtmp="regress"
     
-    save_path = f"{pathtmp}_{args.dataset_label_type}_convnet_{args.n_epochs}eps_seed{args.seed}"
+    if args.resnet:
+        pathtmp2="resnet"
+    else:
+        pathtmp2="convnet"
+    
+    save_path = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
     model_path = f'./models/{save_path}.pth'
     
     if args.classification:
@@ -77,10 +82,7 @@ def train(args):
         criterion = nn.MSELoss()
 
     if not args.eval_only:
-        if args.classification:
-            net = ClassificationNet(n_classes=n_classes)
-        else:
-            net = RegressionNet()
+        net = get_model(args, n_classes=n_classes)
     
         optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
@@ -129,10 +131,7 @@ def train(args):
         print('saved to', model_path)
 
     if args.eval_only:
-        if args.classification:
-            net = ClassificationNet(n_classes=n_classes)
-        else:
-            net = RegressionNet()
+        net = get_model(args, n_classes=n_classes)
         net.load_state_dict(torch.load(model_path, weights_only=True))
         print('loaded from', model_path)
 
@@ -181,6 +180,7 @@ def main():
     parser.add_argument("--eval_only", action='store_true')
     parser.add_argument("--plot_preds", action='store_true')
     parser.add_argument("--classification", action='store_true')
+    parser.add_argument("--resnet", action='store_true')
     parser.add_argument("--set_data_split", action='store_true')
     parser.add_argument("--seed", type=int, default=0) # 0 = NO SEED!
 

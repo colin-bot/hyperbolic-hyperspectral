@@ -17,3 +17,4 @@ pip3 install spectral
 pip3 install scikit-learn
 pip3 install matplotlib
 pip3 install hypll
+pip3 install torchvision
