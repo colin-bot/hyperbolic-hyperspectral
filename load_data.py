@@ -9,7 +9,7 @@ def z_score(tens):
     # print(torch.mean(torch.std(tens, dim=3, keepdim=True)))
     tens_norm = (tens - torch.mean(tens, dim=3, keepdim=True)) / torch.std(tens, dim=3, keepdim=True).clamp(0.0001)
     if torch.isnan(tens_norm).any(): print('normalized data contains NaN!')
-    return tens_norm
+    return tens_norm.permute(0,3,1,2)
 
 
 def load_dataset(label_type='brix', classification=False, n_bins=20):

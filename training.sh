@@ -13,4 +13,4 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python3 train_convnet.py --dataset_label_type extremes_aweta_0.1 --n_epochs 10 --classification --resnet --seed 1
+python3 train_convnet.py --dataset_label_type median_penetro --n_epochs 5 --classification --resnet --seed 1

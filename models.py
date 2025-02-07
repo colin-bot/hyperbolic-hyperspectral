@@ -6,7 +6,7 @@ from torchvision.models import resnet18
 class RegressionNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(180, 10, 5)
+        self.conv1 = nn.Conv2d(204,10, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(10, 5, 5)
         self.fc1 = nn.Linear(10080, 128)
@@ -27,7 +27,7 @@ class RegressionNet(nn.Module):
 class ClassificationNet(nn.Module):
     def __init__(self, n_classes=2):
         super().__init__()
-        self.conv1 = nn.Conv2d(180, 10, 5)
+        self.conv1 = nn.Conv2d(204, 10, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(10, 5, 5)
         self.conv2_bn = nn.BatchNorm2d(5)
@@ -76,7 +76,7 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.inchannel = 10
         self.conv1 = nn.Sequential(
-            nn.Conv2d(180, 10, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(204, 10, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(10),
             nn.ReLU()
         )
@@ -109,8 +109,8 @@ class ResNet(nn.Module):
 def get_model(args, n_classes=2):
     if args.resnet:
         model = resnet18()
-        model.conv1 = nn.Conv2d(180, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
-        model.fc = nn.Linear(in_features=512, out_features=2, bias=True)
+        model.conv1 = nn.Conv2d(204, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+        model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
     else:
         if args.classification:
             model = ClassificationNet(n_classes=2)
