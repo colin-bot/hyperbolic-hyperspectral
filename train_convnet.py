@@ -64,7 +64,7 @@ def train(args):
     if not args.eval_only:
         net = get_model(args, n_classes=n_classes)
     
-        optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+        optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
 
         print("Starting Training!")
 
@@ -86,7 +86,6 @@ def train(args):
                     print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
                     print(outputs)
                     break
-
 
                 if args.classification: labels = labels.long()
 
@@ -164,6 +163,7 @@ def main():
     parser.add_argument("--set_data_split", action='store_true')
     parser.add_argument("--seed", type=int, default=0) # 0 = NO SEED!
     parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=0.0001) # low lr by default!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
 
     args = parser.parse_args()
