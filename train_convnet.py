@@ -75,6 +75,7 @@ def train(args):
 
         nan_ctr=0
         best_val_loss=np.inf
+        early_stopping_ctr=0
 
         for epoch in range(args.n_epochs):
             # TRAIN
@@ -110,7 +111,9 @@ def train(args):
                     running_loss = 0.0
             
             # VALIDATION
-            eval_every_n_epochs = 1
+            eval_every_n_epochs = 1 #todo make into args?
+            early_stopping_threshold = 5
+
             if epoch % eval_every_n_epochs == 0:
                 val_loss = 0.
                 with torch.no_grad():
@@ -126,14 +129,19 @@ def train(args):
                     best_val_loss = val_loss
                     torch.save(net.state_dict(), model_path)
                     print('saved to', model_path)
+                    early_stopping_ctr = 0
+                else:
+                    early_stopping_ctr += 1
+                    if early_stopping_ctr >= early_stopping_threshold:
+                        print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
+                        break
 
         print(f'{nan_ctr} NaNs')
         print('Finished Training')
 
-    if args.eval_only:
-        net = get_model(args, n_classes=n_classes)
-        net.load_state_dict(torch.load(model_path, weights_only=True))
-        print('loaded from', model_path)
+    net = get_model(args, n_classes=n_classes)
+    net.load_state_dict(torch.load(model_path, weights_only=True))
+    print('loaded from', model_path)
 
     ## EVAL ##
     total_loss = 0.
