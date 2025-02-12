@@ -17,7 +17,7 @@ def train_plsr(args):
     dataset, train_size, test_size, n_classes = get_dataset(args)
     train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=train_size)
-    testloader = torch.utils.data.DataLoader(train_set, batch_size=1)
+    testloader = torch.utils.data.DataLoader(test_set, batch_size=1)
     X = next(iter(trainloader))[0].flatten(start_dim=1).numpy()
     y = next(iter(trainloader))[1].numpy()
     print(X.shape, y.shape)
@@ -31,8 +31,11 @@ def train_plsr(args):
     for data in testloader:
         inputs, labels = data
         inputs = inputs.flatten(start_dim=1)
-        true_y.append(int(labels))
+        true_y.append(float(labels))
         predicted_y.append(plsr.predict(inputs))
+
+    print(len(true_y))
+    print(len(np.unique(np.array(predicted_y))))
 
     r2 = r2_score(true_y, predicted_y)
     print(f'R2: {r2}')
