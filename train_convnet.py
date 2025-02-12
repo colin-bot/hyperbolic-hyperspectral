@@ -25,19 +25,24 @@ def train(args):
         random.seed(args.seed)
 
     ## DATALOADERS ##
-    dataset, train_size, test_size, n_classes = get_dataset(args)
+    dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
     print(f'dataset size {len(dataset)}')
 
     batch_size = args.batch_size
 
     if args.set_data_split:
         train_set = torch.utils.data.Subset(dataset, range(train_size))
-        test_set = torch.utils.data.Subset(dataset, range(train_size, train_size+test_size))
+        val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
+        test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+
+    print('train val test size', len(train_set), len(val_set), len(test_set))
 
     shuffle = not args.set_data_split
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
+                                              shuffle=shuffle, num_workers=2)
+    valloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size,
                                               shuffle=shuffle, num_workers=2)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
                                              shuffle=shuffle, num_workers=2)
@@ -69,9 +74,10 @@ def train(args):
         print("Starting Training!")
 
         nan_ctr=0
+        best_val_loss=np.inf
 
-        for epoch in range(args.n_epochs):  # loop over the dataset multiple times
-
+        for epoch in range(args.n_epochs):
+            # TRAIN
             running_loss = 0.0
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
@@ -102,12 +108,27 @@ def train(args):
                 if i % 100 == 99:    # print every 100 mini-batches
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
+            
+            # VALIDATION
+            eval_every_n_epochs = 1
+            if epoch % eval_every_n_epochs == 0:
+                val_loss = 0.
+                with torch.no_grad():
+                    for data in valloader:
+                        inputs, labels = data
+                        # calculate outputs by running images through the network
+                        outputs = net(inputs)
+                        if args.classification: labels = labels.long()
+                        loss = criterion(outputs, labels)
+                        val_loss += loss
+                if val_loss < best_val_loss:
+                    print(f'New best validation loss: {val_loss}')
+                    best_val_loss = val_loss
+                    torch.save(net.state_dict(), model_path)
+                    print('saved to', model_path)
 
         print(f'{nan_ctr} NaNs')
         print('Finished Training')
-
-        torch.save(net.state_dict(), model_path)
-        print('saved to', model_path)
 
     if args.eval_only:
         net = get_model(args, n_classes=n_classes)

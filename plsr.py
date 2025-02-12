@@ -14,7 +14,7 @@ def train_plsr(args):
         np.random.seed(args.seed)
         random.seed(args.seed)
 
-    dataset, train_size, test_size, n_classes = get_dataset(args)
+    dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
     train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=train_size)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=1)
