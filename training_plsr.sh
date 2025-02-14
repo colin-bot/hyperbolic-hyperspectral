@@ -13,4 +13,4 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python3 plsr.py --dataset_label_type brix --seed 1 --plot_preds
+python3 plsr.py --dataset_label_type aweta --seed 1 --plot_preds

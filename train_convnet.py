@@ -4,7 +4,7 @@
 
 import torch
 
-from data import KiwiDataset
+from data import KiwiDataset, Random90DegRot
 from load_data import get_dataset
 from models import get_model
 
@@ -77,12 +77,16 @@ def train(args):
         best_val_loss=np.inf
         early_stopping_ctr=0
 
+        augmentation = Random90DegRot(dims=[2,3])
+
         for epoch in range(args.n_epochs):
             # TRAIN
             running_loss = 0.0
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
                 inputs, labels = data
+                if augmentation:
+                    inputs = augmentation(inputs)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -109,6 +113,7 @@ def train(args):
                 if i % 100 == 99:    # print every 100 mini-batches
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
+                
             
             # VALIDATION
             eval_every_n_epochs = 1 #todo make into args?
@@ -149,9 +154,11 @@ def train(args):
     n_examples = 0
     all_labels = []
     predicted_labels = []
+
     with torch.no_grad():
         for data in testloader:
             inputs, labels = data
+
             # calculate outputs by running images through the network
             outputs = net(inputs)
             if args.classification: labels = labels.long()

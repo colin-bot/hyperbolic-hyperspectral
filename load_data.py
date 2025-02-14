@@ -1,4 +1,4 @@
-from data import KiwiDataset
+from data import KiwiDataset, WrapperDataset, Random90DegRot
 from torch.utils.data import ConcatDataset
 import torch
 import numpy as np
@@ -9,7 +9,15 @@ def z_score(tens):
     # print(torch.mean(torch.std(tens, dim=3, keepdim=True)))
     tens_norm = (tens - torch.mean(tens, dim=3, keepdim=True)) / torch.std(tens, dim=3, keepdim=True).clamp(0.0001)
     if torch.isnan(tens_norm).any(): print('normalized data contains NaN!')
-    return tens_norm.permute(0,3,1,2)
+    return tens_norm.permute(0,3,1,2) # B,X,Y,C -> B,C,X,Y
+
+
+def load_wrap_normalize(filepath):
+    dataset_tmp = torch.load(filepath)
+    dataset_tmp = WrapperDataset(dataset_tmp, transform=None)
+    # dataset_tmp = WrapperDataset(dataset_tmp, transform=Random90DegRot(dims=[1,2]))
+    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    return dataset_tmp
 
 
 def load_dataset(label_type='brix', classification=False, n_bins=20):
@@ -27,13 +35,11 @@ def load_dataset(label_type='brix', classification=False, n_bins=20):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = torch.load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
-        dataset_tmp.samples = z_score(dataset_tmp.samples)
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
         dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = torch.load(f'data/kiwi_dataset_1100-1172.pt')
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
     dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -73,13 +79,11 @@ def load_median_dataset(label_type='brix'):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = torch.load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
-        dataset_tmp.samples = z_score(dataset_tmp.samples)
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
         dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = torch.load(f'data/kiwi_dataset_1100-1172.pt')
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
     dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -105,13 +109,11 @@ def load_extremes_dataset(label_type='brix', quantile=0.25):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = torch.load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
-        dataset_tmp.samples = z_score(dataset_tmp.samples)
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
         dataset_tmp.labels = torch.tensor(labels_arr2[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = torch.load(f'data/kiwi_dataset_1100-1172.pt')
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
     dataset_tmp.labels = torch.tensor(labels_arr2[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -141,13 +143,11 @@ def load_easy_dataset(label_type='brix'):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = torch.load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
-        dataset_tmp.samples = z_score(dataset_tmp.samples)
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
         dataset_tmp.labels = torch.tensor(labels_arr2[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = torch.load(f'data/kiwi_dataset_1100-1172.pt')
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
     dataset_tmp.labels = torch.tensor(labels_arr2[1100:1172])
     dataset_list.append(dataset_tmp)
 

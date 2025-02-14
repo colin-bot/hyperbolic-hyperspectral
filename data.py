@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch import from_numpy
 from scipy import ndimage
 from torch import save
+from torch import rot90
 from sklearn.metrics import r2_score
 
 
@@ -148,10 +149,35 @@ class KiwiDataset(Dataset):
         self.samples, self.labels = make_kiwi_dataset(excel_lines, 
                                                       sample_type=sample_type, 
                                                       label_type=label_type)
-        print (self.samples.size())
     
     def __getitem__(self, index):
         return self.samples[index], self.labels[index].float()
+
+    def __len__(self):
+        return self.samples.shape[0]
+
+
+class Random90DegRot(object):
+    def __init__(self, dims):
+        self.dims=dims
+
+    def __call__(self, sample):
+        k = np.random.randint(4)
+        sample = rot90(sample, k, self.dims)
+        return sample
+
+
+class WrapperDataset(Dataset):
+    def __init__(self, kiwidataset, transform=None):
+        super(WrapperDataset, self).__init__()
+        self.samples = kiwidataset.samples
+        self.labels = kiwidataset.labels
+        self.transform = transform
+
+    def __getitem__(self, index):
+        sample = self.samples[index]
+        if self.transform: sample = self.transform(sample)
+        return sample, self.labels[index].float()
 
     def __len__(self):
         return self.samples.shape[0]
