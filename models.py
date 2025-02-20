@@ -35,7 +35,7 @@ class ClassificationNet(nn.Module):
         self.fc1_bn = nn.BatchNorm1d(128)
         self.fc2 = nn.Linear(128, 64)
         self.fc2_bn = nn.BatchNorm1d(64)
-        self.fc3 = nn.Linear(64, 2) # binary classification
+        self.fc3 = nn.Linear(64, n_classes) # binary classification
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -106,8 +106,26 @@ class ResNet(nn.Module):
         return out
 
 
+class FCNet(nn.Module):
+    def __init__(self, n_classes=2):
+        super(FCNet, self).__init__()
+        self.fc1 = nn.Linear(204, 128)
+        self.fc1_bn = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc2_bn = nn.BatchNorm1d(64)
+        self.fc3 = nn.Linear(64, n_classes)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1_bn(self.fc1(x)))
+        x = F.relu(self.fc2_bn(self.fc2(x)))
+        x = self.fc3(x)
+        return x     
+
+
 def get_model(args, n_classes=2):
-    if args.resnet:
+    if 'avg1d' in args.special_modes.split('-'):
+        model = FCNet(n_classes=2)
+    elif args.resnet:
         model = resnet18()
         model.conv1 = nn.Conv2d(204, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
         model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)

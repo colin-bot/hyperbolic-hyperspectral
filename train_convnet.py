@@ -18,6 +18,14 @@ import argparse
 import matplotlib.pyplot as plt
 
 
+def transform_inputs(inputs, data_transforms, special_modes):
+    if 'center_crop' in data_transforms:
+        inputs = inputs[:,:,80:100,80:100]
+    elif 'avg1d' in special_modes:
+        inputs = inputs.mean(dim=(2,3))
+    return inputs
+
+
 def train(args):
     if args.seed != 0:
         torch.manual_seed(args.seed)
@@ -48,6 +56,11 @@ def train(args):
                                              shuffle=shuffle, num_workers=2)
 
     ## TRAIN ## 
+    if args.data_transforms: data_transforms = args.data_transforms.split('-')
+    else: data_transforms = []
+    if args.special_modes: special_modes = args.special_modes.split('-')
+    else: special_modes = []
+
     if args.classification:
         pathtmp = "classif"
     else:
@@ -55,6 +68,8 @@ def train(args):
     
     if args.resnet:
         pathtmp2="resnet"
+    elif 'avg1d' in special_modes:
+        pathtmp2="avg1d"
     else:
         pathtmp2="convnet"
     
@@ -69,7 +84,8 @@ def train(args):
     if not args.eval_only:
         net = get_model(args, n_classes=n_classes)
     
-        optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
+        # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
         print("Starting Training!")
 
@@ -77,7 +93,10 @@ def train(args):
         best_val_loss=np.inf
         early_stopping_ctr=0
 
-        augmentation = Random90DegRot(dims=[2,3])
+        if 'rd90rot' in data_transforms:
+            augmentation = Random90DegRot(dims=[2,3])
+        else:
+            augmentation = None
 
         for epoch in range(args.n_epochs):
             # TRAIN
@@ -87,6 +106,8 @@ def train(args):
                 inputs, labels = data
                 if augmentation:
                     inputs = augmentation(inputs)
+
+                inputs = transform_inputs(inputs, data_transforms, special_modes)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -124,6 +145,7 @@ def train(args):
                 with torch.no_grad():
                     for data in valloader:
                         inputs, labels = data
+                        inputs = transform_inputs(inputs, data_transforms, special_modes)
                         # calculate outputs by running images through the network
                         outputs = net(inputs)
                         if args.classification: labels = labels.long()
@@ -158,6 +180,7 @@ def train(args):
     with torch.no_grad():
         for data in testloader:
             inputs, labels = data
+            inputs = transform_inputs(inputs, data_transforms, special_modes)
 
             # calculate outputs by running images through the network
             outputs = net(inputs)
@@ -181,6 +204,10 @@ def train(args):
         print(f'R2: {r2}')
 
     if args.plot_preds:
+        print(all_labels[:50])
+        print(predicted_labels[:50])
+        for i in np.unique(predicted_labels):
+            print(i, predicted_labels.count(i), all_labels.count(i))
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
@@ -201,6 +228,8 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=0.0001) # low lr by default!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
+    parser.add_argument("--data_transforms", type=str)
+    parser.add_argument("--special_modes", type=str)
 
     args = parser.parse_args()
     print(args)

@@ -9,14 +9,16 @@ def z_score(tens):
     # print(torch.mean(torch.std(tens, dim=3, keepdim=True)))
     tens_norm = (tens - torch.mean(tens, dim=3, keepdim=True)) / torch.std(tens, dim=3, keepdim=True).clamp(0.0001)
     if torch.isnan(tens_norm).any(): print('normalized data contains NaN!')
-    return tens_norm.permute(0,3,1,2) # B,X,Y,C -> B,C,X,Y
+    return tens_norm 
 
 
 def load_wrap_normalize(filepath):
     dataset_tmp = torch.load(filepath)
     dataset_tmp = WrapperDataset(dataset_tmp, transform=None)
     # dataset_tmp = WrapperDataset(dataset_tmp, transform=Random90DegRot(dims=[1,2]))
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    samples_tmp = z_score(dataset_tmp.samples)
+    samples_tmp = samples_tmp.permute(0, 3, 1, 2) # B,X,Y,C -> B,C,X,Y
+    dataset_tmp.samples = samples_tmp
     return dataset_tmp
 
 
