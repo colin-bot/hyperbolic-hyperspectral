@@ -206,8 +206,12 @@ def train(args):
     if args.plot_preds:
         print(all_labels[:50])
         print(predicted_labels[:50])
-        for i in np.unique(predicted_labels):
-            print(i, predicted_labels.count(i), all_labels.count(i))
+        if args.classification:
+            for i in np.unique(all_labels):
+                print(i, predicted_labels.count(i), all_labels.count(i))
+            label_difference = np.abs(np.array(predicted_labels)-np.array(all_labels))
+            print(label_difference[:50])
+            print(np.mean(label_difference))
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
@@ -228,8 +232,9 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=0.0001) # low lr by default!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
-    parser.add_argument("--data_transforms", type=str)
-    parser.add_argument("--special_modes", type=str)
+    parser.add_argument("--data_transforms", type=str) # data transforms / augmentations
+    parser.add_argument("--special_modes", type=str) # special network types
+    parser.add_argument("--pooling_factor", type=int, default=1) # dim reduction
 
     args = parser.parse_args()
     print(args)

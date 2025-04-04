@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torchvision.models import resnet18
+from torchvision.models import resnet34
 
 class RegressionNet(nn.Module):
     def __init__(self):
@@ -123,16 +124,20 @@ class FCNet(nn.Module):
 
 
 def get_model(args, n_classes=2):
-    if 'avg1d' in args.special_modes.split('-'):
-        model = FCNet(n_classes=2)
-    elif args.resnet:
-        model = resnet18()
-        model.conv1 = nn.Conv2d(204, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
-        model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
+    if args.special_modes:
+        if 'avg1d' in args.special_modes.split('-'):
+            model = FCNet(n_classes=2)
     else:
-        if args.classification:
-            model = ClassificationNet(n_classes=2)
+        if args.resnet:
+            model = resnet34()
+            model.conv1 = nn.Conv2d(204//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+            if not args.classification: n_classes = 1
+            # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
+            model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
         else:
-            model = RegressionNet()
+            if args.classification:
+                model = ClassificationNet(n_classes=2)
+            else:
+                model = RegressionNet()
     
     return model

@@ -2,6 +2,23 @@ from data import KiwiDataset, WrapperDataset, Random90DegRot
 from torch.utils.data import ConcatDataset
 import torch
 import numpy as np
+from skimage.measure import block_reduce
+
+
+POOLING_FACTOR = 1
+
+
+def spectral_pooling(tens, factor=4, method='avg'):
+    if method == 'avg':
+        func = np.mean
+    elif method == 'max':
+        func = np.max
+    elif method == 'min':
+        func = np.min
+    # ugly conversion between tensor/np, needed for skimage block_reduce
+    tmp = block_reduce(tens.numpy(), block_size=(1,1,1,factor), func=func)
+    new_tens = torch.from_numpy(tmp)
+    return new_tens
 
 
 def z_score(tens):
@@ -12,36 +29,39 @@ def z_score(tens):
     return tens_norm 
 
 
-def load_wrap_normalize(filepath):
+def load_wrap_normalize(filepath, args):
     dataset_tmp = torch.load(filepath)
     dataset_tmp = WrapperDataset(dataset_tmp, transform=None)
     # dataset_tmp = WrapperDataset(dataset_tmp, transform=Random90DegRot(dims=[1,2]))
-    samples_tmp = z_score(dataset_tmp.samples)
+    if args.pooling_factor != 1: 
+        samples_tmp = spectral_pooling(dataset_tmp.samples, factor=args.pooling_factor, method='avg')
+    samples_tmp = z_score(samples_tmp)
     samples_tmp = samples_tmp.permute(0, 3, 1, 2) # B,X,Y,C -> B,C,X,Y
     dataset_tmp.samples = samples_tmp
     return dataset_tmp
 
 
-def load_dataset(label_type='brix', classification=False, n_bins=20):
-    if label_type=='brix':
+def load_dataset(args):
+    if args.dataset_label_type=='brix':
         labels_arr = np.load('data/brixes.npy')
-    if label_type=='aweta':
+    if args.dataset_label_type=='aweta':
         labels_arr = np.load('data/awetas.npy')
-    if label_type=='penetro':
+    if args.dataset_label_type=='penetro':
         labels_arr = np.load('data/penetros.npy')
 
-    if classification:
-        _, bin_edges = np.histogram(labels_arr, bins=n_bins)
+    if args.classification:
+        _, bin_edges = np.histogram(labels_arr, bins=args.n_bins)
         labels_arr = np.digitize(labels_arr, bin_edges[1:-1])
 
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt', args)
         dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt', args)
+    print(dataset_tmp.samples.size())
     dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -66,7 +86,8 @@ def load_dummy_dataset():
     return concatenated_dataset
 
 
-def load_median_dataset(label_type='brix'):
+def load_median_dataset(args):
+    label_type=args.dataset_label_type.split('_')[1]
     if label_type=='brix':
         labels_arr = np.load('data/brixes.npy')
     if label_type=='aweta':
@@ -81,11 +102,11 @@ def load_median_dataset(label_type='brix'):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt', args)
         dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt', args)
     dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -93,7 +114,10 @@ def load_median_dataset(label_type='brix'):
     return concatenated_dataset
 
 
-def load_extremes_dataset(label_type='brix', quantile=0.25):
+def load_extremes_dataset(args):
+    split = args.dataset_label_type.split('_')
+    label_type=split[1]
+    quantile=float(split[2])
     if label_type=='brix':
         labels_arr = np.load('data/brixes.npy')
     if label_type=='aweta':
@@ -111,11 +135,11 @@ def load_extremes_dataset(label_type='brix', quantile=0.25):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt', args)
         dataset_tmp.labels = torch.tensor(labels_arr2[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt', args)
     dataset_tmp.labels = torch.tensor(labels_arr2[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -123,7 +147,8 @@ def load_extremes_dataset(label_type='brix', quantile=0.25):
     return concatenated_dataset
 
 
-def load_easy_dataset(label_type='brix'):
+def load_easy_dataset(args):
+    label_type = args.dataset_label_type.split('_')[1]
     if label_type=='brix':
         labels_arr = np.load('data/brixes.npy')
     if label_type=='aweta':
@@ -145,11 +170,11 @@ def load_easy_dataset(label_type='brix'):
     dataset_list = []
     for i in range(11):
         # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
-        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt')
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt', args)
         dataset_tmp.labels = torch.tensor(labels_arr2[i*100:(i+1)*100])
         dataset_list.append(dataset_tmp)
     # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
-    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt')
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt', args)
     dataset_tmp.labels = torch.tensor(labels_arr2[1100:1172])
     dataset_list.append(dataset_tmp)
 
@@ -166,30 +191,28 @@ def get_dataset(args):
         n_classes = 2
     elif "median" in args.dataset_label_type:
         print(args.dataset_label_type)
-        dataset = load_median_dataset(label_type=args.dataset_label_type.split('_')[1])
+        dataset = load_median_dataset(args)
         train_size = 1000
         val_size = 72
         test_size = 100
         n_classes = 2
     elif "extremes" in args.dataset_label_type:
-        split = args.dataset_label_type.split('_')
-        dataset = load_extremes_dataset(label_type=split[1], quantile=float(split[2]))
+        dataset = load_extremes_dataset(args)
         train_size = 1000
         val_size = 72
         test_size = 100
         n_classes = 2
     elif "easy" in args.dataset_label_type:
-        label_type = args.dataset_label_type.split('_')[1]
-        dataset = load_easy_dataset(label_type=label_type)
+        dataset = load_easy_dataset(args)
         train_size = 1000
         val_size = 72
         test_size = 100
-        if label_type=='brix':
+        if args.dataset_label_type=='brix':
             n_classes = 2
         else:
             n_classes = 3
     else:
-        dataset = load_dataset(label_type=args.dataset_label_type, classification=args.classification, n_bins=args.n_bins)
+        dataset = load_dataset(args)
         train_size = 1000
         val_size = 72
         test_size = 100

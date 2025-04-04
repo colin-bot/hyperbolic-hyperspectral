@@ -15,7 +15,7 @@ def train_plsr(args):
         random.seed(args.seed)
 
     dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
-    train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=train_size)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=1)
     X = next(iter(trainloader))[0].flatten(start_dim=1).numpy()
@@ -27,18 +27,48 @@ def train_plsr(args):
 
     true_y = []
     predicted_y = []
+    true_y_hist = []
+    predicted_y_hist = []
+
+    label_type = args.dataset_label_type
+    if label_type=='brix':
+        labels_arr = np.load('data/brixes.npy')
+        n_bins = 10
+    if label_type=='aweta':
+        labels_arr = np.load('data/awetas.npy')
+        n_bins = 8
+    if label_type=='penetro':
+        labels_arr = np.load('data/penetros.npy')
+        n_bins = 8
+
+    _, bin_edges = np.histogram(labels_arr, bins=n_bins)
+    labels_arr = np.digitize(labels_arr, bin_edges[1:-1])
 
     for data in testloader:
         inputs, labels = data
         inputs = inputs.flatten(start_dim=1)
         true_y.append(float(labels))
-        predicted_y.append(plsr.predict(inputs))
+        preds = plsr.predict(inputs)
+        predicted_y.append(preds)
+        true_y_hist.append(int(np.digitize(labels, bin_edges[1:-1])[0]))
+        predicted_y_hist.append(int(np.digitize(preds, bin_edges[1:-1])))
 
     print(len(true_y))
     print(len(np.unique(np.array(predicted_y))))
 
     r2 = r2_score(true_y, predicted_y)
     print(f'R2: {r2}')
+
+    print(bin_edges[1:-1])
+    print(true_y[:10])
+    print(predicted_y[:10])
+    print(true_y_hist[:10])
+    print(predicted_y_hist[:10])
+
+    correct = sum(1 for i, j in zip(true_y_hist, predicted_y_hist) if i == j)
+    print(correct)
+    
+    print('acc@1=', correct / len(true_y_hist))
 
     if args.plot_preds:
         plt.scatter(true_y, predicted_y)
@@ -66,4 +96,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

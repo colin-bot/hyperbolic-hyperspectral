@@ -15,6 +15,7 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 pip3 install spectral
 pip3 install scikit-learn
+pip3 install scikit-image
 pip3 install matplotlib
 pip3 install hypll
 pip3 install torchvision
