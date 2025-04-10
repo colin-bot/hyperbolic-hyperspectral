@@ -86,6 +86,9 @@ def main():
     parser.add_argument("--set_data_split", action='store_true')
     parser.add_argument("--seed", type=int, default=0) # 0 = NO SEED!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
+    parser.add_argument("--pooling_factor", type=int, default=1) # dim reduction
+    parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
+
 
     args = parser.parse_args()
     print(args)

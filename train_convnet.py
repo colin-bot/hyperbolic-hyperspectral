@@ -120,7 +120,7 @@ def train(args):
                     break
 
                 if args.classification: labels = labels.long()
-
+                else: labels = labels.flatten()
                 loss = criterion(outputs, labels)
                 if torch.isnan(loss):
                     print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
@@ -235,6 +235,9 @@ def main():
     parser.add_argument("--data_transforms", type=str) # data transforms / augmentations
     parser.add_argument("--special_modes", type=str) # special network types
     parser.add_argument("--pooling_factor", type=int, default=1) # dim reduction
+    parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
+    parser.add_argument("--onebyoneconv", action='store_true')
+    parser.add_argument("--onebyoneconvdim", type=int, default=32)
 
     args = parser.parse_args()
     print(args)

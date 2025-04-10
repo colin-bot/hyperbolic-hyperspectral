@@ -130,7 +130,15 @@ def get_model(args, n_classes=2):
     else:
         if args.resnet:
             model = resnet34()
-            model.conv1 = nn.Conv2d(204//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+            if args.onebyoneconv:
+                model.conv1 = nn.Sequential(
+                    nn.Conv2d(204//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
+                    nn.BatchNorm2d(args.onebyoneconvdim),
+                    nn.ReLU(),
+                    nn.Conv2d(args.onebyoneconvdim, 64, kernel_size=(7,7), stride=(3,3), padding=(3,3), bias=False)
+                )
+            else:
+                model.conv1 = nn.Conv2d(204//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
             if not args.classification: n_classes = 1
             # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
             model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)

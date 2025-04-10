@@ -5,9 +5,6 @@ import numpy as np
 from skimage.measure import block_reduce
 
 
-POOLING_FACTOR = 1
-
-
 def spectral_pooling(tens, factor=4, method='avg'):
     if method == 'avg':
         func = np.mean
@@ -34,7 +31,8 @@ def load_wrap_normalize(filepath, args):
     dataset_tmp = WrapperDataset(dataset_tmp, transform=None)
     # dataset_tmp = WrapperDataset(dataset_tmp, transform=Random90DegRot(dims=[1,2]))
     if args.pooling_factor != 1: 
-        samples_tmp = spectral_pooling(dataset_tmp.samples, factor=args.pooling_factor, method='avg')
+        samples_tmp = spectral_pooling(dataset_tmp.samples, factor=args.pooling_factor, method=args.pooling_func)
+    else: samples_tmp = dataset_tmp.samples
     samples_tmp = z_score(samples_tmp)
     samples_tmp = samples_tmp.permute(0, 3, 1, 2) # B,X,Y,C -> B,C,X,Y
     dataset_tmp.samples = samples_tmp
