@@ -28,4 +28,5 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 # python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --classification --resnet --n_bins 10 --seed 69 --pooling_factor 3 --pooling_func min --plot_preds
 
 
-python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --resnet --seed 70 --pooling_factor 4 --pooling_func min --plot_preds
+# python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --resnet --seed 70 --pooling_factor 4 --pooling_func min --plot_preds
+python3 train_convnet.py --dataset_label_type brix --classification --n_bins 10 --n_epochs 1 --lr 0.01 --hypll --seed 1 --plot_preds

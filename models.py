@@ -4,6 +4,8 @@ import torch
 from torchvision.models import resnet18
 from torchvision.models import resnet34
 
+from models_hypll import PoincareResNetModel
+
 class RegressionNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -127,6 +129,12 @@ def get_model(args, n_classes=2):
     if args.special_modes:
         if 'avg1d' in args.special_modes.split('-'):
             model = FCNet(n_classes=2)
+    elif args.hypll:
+        model = PoincareResNetModel(args,
+                                    n_classes=n_classes,
+                                    channel_sizes=[4, 8, 16],
+                                    group_depths=[3, 3, 3],
+                                    manifold_type='poincare')
     else:
         if args.resnet:
             model = resnet34()
@@ -147,5 +155,4 @@ def get_model(args, n_classes=2):
                 model = ClassificationNet(n_classes=2)
             else:
                 model = RegressionNet()
-    
     return model

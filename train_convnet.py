@@ -17,6 +17,8 @@ from sklearn.metrics import r2_score
 import argparse
 import matplotlib.pyplot as plt
 
+from hypll.optim import RiemannianAdam
+
 
 def transform_inputs(inputs, data_transforms, special_modes):
     if 'center_crop' in data_transforms:
@@ -85,7 +87,10 @@ def train(args):
         net = get_model(args, n_classes=n_classes)
     
         # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
-        optimizer = optim.Adam(net.parameters(), lr=args.lr)
+        if args.hypll:
+            optimizer = RiemannianAdam(net.parameters(), lr=0.001)
+        else:
+            optimizer = optim.Adam(net.parameters(), lr=args.lr)
 
         print("Starting Training!")
 
@@ -114,6 +119,9 @@ def train(args):
 
                 # forward + backward + optimize
                 outputs = net(inputs)
+                if args.hypll: outputs = outputs.tensor
+
+                print(outputs.shape)
                 if torch.isnan(outputs).any():
                     print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
                     print(outputs)
@@ -121,6 +129,7 @@ def train(args):
 
                 if args.classification: labels = labels.long()
                 else: labels = labels.flatten()
+
                 loss = criterion(outputs, labels)
                 if torch.isnan(loss):
                     print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
@@ -130,6 +139,7 @@ def train(args):
                 optimizer.step()
 
                 # print statistics
+                print(running_loss)
                 running_loss += loss.item()
                 if i % 100 == 99:    # print every 100 mini-batches
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
@@ -238,6 +248,7 @@ def main():
     parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
     parser.add_argument("--onebyoneconv", action='store_true')
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
+    parser.add_argument("--hypll", action='store_true')
 
     args = parser.parse_args()
     print(args)
