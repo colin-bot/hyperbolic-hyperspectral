@@ -28,6 +28,26 @@ def transform_inputs(inputs, data_transforms, special_modes):
     return inputs
 
 
+class ModelArgs:
+    def __init__(self,
+                 classification=True,
+                 resnet=True,
+                 special_modes=None,
+                 hypll=False,
+                 pooling_factor=1,
+                 pooling_func='avg',
+                 onebyoneconv=False,
+                 onebyoneconvdim=1):
+        self.classification = classification
+        self.resnet = resnet
+        self.special_modes = special_modes
+        self.hypll = hypll
+        self.pooling_factor = pooling_factor
+        self.pooling_func = pooling_func
+        self.onebyoneconv = onebyoneconv
+        self.onebyoneconvdim = onebyoneconvdim
+
+
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -65,130 +85,63 @@ def train(args):
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
 
-    if args.classification:
-        pathtmp = "classif"
-    else:
-        pathtmp="regress"
+    # if args.classification:
+    #     pathtmp = "classif"
+    # else:
+    #     pathtmp="regress"
     
-    if args.hypll:
-        pathtmp2="poincare"
-    elif args.resnet:
-        pathtmp2="resnet"
-    elif 'avg1d' in special_modes:
-        pathtmp2="avg1d"
-    else:
-        pathtmp2="convnet"
+    # if args.hypll:
+    #     pathtmp2="poincare"
+    # elif args.resnet:
+    #     pathtmp2="resnet"
+    # elif 'avg1d' in special_modes:
+    #     pathtmp2="avg1d"
+    # else:
+    #     pathtmp2="convnet"
     
-    save_path = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
-    model_path = f'./models/{save_path}.pth'
-    
+    # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
+    # model_path_euc = f'./models/{save_path}.pth'
+
+    euc_args = ModelArgs(classification=args.classification, 
+                         resnet=True, 
+                         special_modes=args.special_modes,
+                         hypll=False,
+                         pooling_factor=args.pooling_factor,
+                         pooling_func=args.pooling_func,
+                         onebyoneconv=args.onebyoneconv,
+                         onebyoneconvdim=args.onebyoneconvdim)
+    hyp_args = ModelArgs(classification=args.classification, 
+                         resnet=False, 
+                         special_modes=args.special_modes,
+                         hypll=True,
+                         pooling_factor=args.pooling_factor,
+                         pooling_func=args.pooling_func,
+                         onebyoneconv=args.onebyoneconv,
+                         onebyoneconvdim=args.onebyoneconvdim)
+
+    model_path_euc = f'./models/classif_brix_resnet_30eps_seed7.pth'
+    net_euc = get_model(euc_args, n_classes=n_classes).to(device)
+    net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
+    print('loaded from', model_path_euc)
+
+    model_path_hyp = f'./models/classif_brix_poincare_5eps_seed1.pth'
+    net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
+    net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
+    print('loaded from', model_path_hyp)
+
+    ## EVAL ##
     if args.classification:
         criterion = nn.CrossEntropyLoss()
     else:
         criterion = nn.MSELoss()
 
-    if not args.eval_only:
-        net = get_model(args, n_classes=n_classes).to(device)
-    
-        # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
-        if args.hypll:
-            optimizer = RiemannianAdam(net.parameters(), lr=args.lr)
-        else:
-            optimizer = optim.Adam(net.parameters(), lr=args.lr)
-
-        print("Starting Training!")
-
-        nan_ctr=0
-        best_val_loss=np.inf
-        early_stopping_ctr=0
-
-        if 'rd90rot' in data_transforms:
-            augmentation = Random90DegRot(dims=[2,3])
-        else:
-            augmentation = None
-
-        for epoch in range(args.n_epochs):
-            # TRAIN
-            running_loss = 0.0
-            for i, data in enumerate(trainloader, 0):
-                # get the inputs; data is a list of [inputs, labels]
-                inputs, labels = data[0].to(device), data[1].to(device)
-                if augmentation:
-                    inputs = augmentation(inputs)
-
-                inputs = transform_inputs(inputs, data_transforms, special_modes)
-
-                # zero the parameter gradients
-                optimizer.zero_grad()
-
-                # forward + backward + optimize
-                outputs = net(inputs)
-                if args.hypll: outputs = outputs.tensor
-
-                if torch.isnan(outputs).any():
-                    print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
-                    print(outputs)
-                    break
-
-                if args.classification: labels = labels.long()
-                else: labels = labels.flatten()
-
-                loss = criterion(outputs, labels)
-                if torch.isnan(loss):
-                    print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
-                    nan_ctr += 1
-
-                loss.backward()
-                optimizer.step()
-
-                # print statistics
-                running_loss += loss.item()
-                if i % 100 == 99:    # print every 100 mini-batches
-                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
-                    running_loss = 0.0
-                
-            
-            # VALIDATION
-            eval_every_n_epochs = 1 #todo make into args?
-            early_stopping_threshold = 5
-
-            if epoch % eval_every_n_epochs == 0:
-                val_loss = 0.
-                with torch.no_grad():
-                    for data in valloader:
-                        inputs, labels = data[0].to(device), data[1].to(device)
-                        inputs = transform_inputs(inputs, data_transforms, special_modes)
-                        # calculate outputs by running images through the network
-                        outputs = net(inputs)
-                        if args.hypll: outputs = outputs.tensor
-                        if args.classification: labels = labels.long()
-                        loss = criterion(outputs, labels)
-                        val_loss += loss
-                if val_loss < best_val_loss:
-                    print(f'New best validation loss: {val_loss}')
-                    best_val_loss = val_loss
-                    torch.save(net.state_dict(), model_path)
-                    print('saved to', model_path)
-                    early_stopping_ctr = 0
-                else:
-                    early_stopping_ctr += 1
-                    if early_stopping_ctr >= early_stopping_threshold:
-                        print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
-                        break
-
-        print(f'{nan_ctr} NaNs')
-        print('Finished Training')
-
-    net = get_model(args, n_classes=n_classes).to(device)
-    net.load_state_dict(torch.load(model_path, weights_only=False))
-    print('loaded from', model_path)
-
-    ## EVAL ##
     total_loss = 0.
     total_correct = 0
     n_examples = 0
     all_labels = []
     predicted_labels = []
+
+    hyp_weight = 0.5
 
     with torch.no_grad():
         for data in testloader:
@@ -196,9 +149,20 @@ def train(args):
             inputs = transform_inputs(inputs, data_transforms, special_modes)
 
             # calculate outputs by running images through the network
-            outputs = net(inputs)
+            logits_euc = net_euc(inputs)
+            logits_hyp = net_hyp(inputs).tensor
+
+            # print(logits_euc)
+            # print(logits_hyp)
+
+            # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
+            # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
+
+            outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
+
+            # print(outputs)
+
             if args.classification: labels = labels.long()
-            if args.hypll: outputs = outputs.tensor
             loss = criterion(outputs, labels)
             total_loss += loss
             n_examples += len(labels)
@@ -229,6 +193,7 @@ def train(args):
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
+        save_path = 'hybrid'
         plt.savefig(f"./imgs/{save_path}.png")
         plt.show()
 

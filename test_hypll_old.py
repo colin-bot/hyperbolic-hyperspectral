@@ -21,17 +21,79 @@ We will perform the following steps in order:
 
 """
 
+##############################
+# 0. Grab the available device
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 import torch
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+#############################
+# 1. Define the Poincare ball
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 from hypll.manifolds.poincare_ball import Curvature, PoincareBall
-from hypll.manifolds.euclidean import Euclidean
-from hypll.tensors import TangentTensor
+
+# Making the curvature a learnable parameter is usually suboptimal but can
+# make training smoother. An initial curvature of 0.1 has also been shown
+# to help during training.
+manifold = PoincareBall(c=Curvature(value=0.1, requires_grad=True))
+
+
+###############################
+# 2. Load and normalize CIFAR10
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+import torchvision
+import torchvision.transforms as transforms
+
+########################################################################
+# .. note::
+#     If running on Windows and you get a BrokenPipeError, try setting
+#     the num_worker of torch.utils.data.DataLoader() to 0.
+
+transform = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ]
+)
+
+batch_size = 128
+
+trainset = torchvision.datasets.CIFAR10(
+    root="./data", train=True, download=True, transform=transform
+)
+trainloader = torch.utils.data.DataLoader(
+    trainset, batch_size=batch_size, shuffle=True, num_workers=2
+)
+
+testset = torchvision.datasets.CIFAR10(
+    root="./data", train=False, download=True, transform=transform
+)
+testloader = torch.utils.data.DataLoader(
+    testset, batch_size=batch_size, shuffle=False, num_workers=2
+)
+
+
+###############################
+# 3. Define a Poincare ResNet
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# This implementation is based on the Poincare ResNet paper, which can
+# be found at https://arxiv.org/abs/2303.14027 and which, in turn, is
+# based on the original Euclidean implementation described in the paper
+# Deep Residual Learning for Image Recognition by He et al. from 2015:
+# https://arxiv.org/abs/1512.03385.
+
+
 from typing import Optional
 
 from torch import nn
 
 from hypll import nn as hnn
 from hypll.tensors import ManifoldTensor
+
 
 class PoincareResidualBlock(nn.Module):
     def __init__(
@@ -91,8 +153,6 @@ class PoincareResidualBlock(nn.Module):
 class PoincareResNet(nn.Module):
     def __init__(
         self,
-        args,
-        n_classes: int,
         channel_sizes: list[int],
         group_depths: list[int],
         manifold: PoincareBall,
@@ -106,7 +166,7 @@ class PoincareResNet(nn.Module):
         self.manifold = manifold
 
         self.conv = hnn.HConvolution2d(
-            in_channels=204//args.pooling_factor,
+            in_channels=3,
             out_channels=channel_sizes[0],
             kernel_size=3,
             manifold=manifold,
@@ -133,8 +193,7 @@ class PoincareResNet(nn.Module):
         )
 
         self.avg_pool = hnn.HAvgPool2d(kernel_size=8, manifold=manifold)
-        self.avg_pool2 = hnn.HAvgPool2d(kernel_size=5, manifold=manifold)
-        self.fc = hnn.HLinear(in_features=channel_sizes[2], out_features=n_classes, manifold=manifold)
+        self.fc = hnn.HLinear(in_features=channel_sizes[2], out_features=10, manifold=manifold)
 
     def forward(self, x: ManifoldTensor) -> ManifoldTensor:
         x = self.conv(x)
@@ -143,10 +202,11 @@ class PoincareResNet(nn.Module):
         x = self.group1(x)
         x = self.group2(x)
         x = self.group3(x)
+        print(x.size())
         x = self.avg_pool(x)
-        x = self.avg_pool2(x)
-        x = x.squeeze()
-        x = self.fc(x)
+        print(x.size())
+        x = self.fc(x.squeeze())
+        print(x.size())
         return x
 
     def _make_group(
@@ -189,31 +249,87 @@ class PoincareResNet(nn.Module):
         return nn.Sequential(*layers)
 
 
-class PoincareResNetModel(nn.Module):
-    def __init__(
-        self,
-        args,
-        n_classes: int,
-        channel_sizes: list[int],
-        group_depths: list[int],
-        manifold_type: str,
-    ):
-        # For the Poincare ResNet itself we again replace each layer by a manifold-agnostic one
-        # and supply the PoincareBall to each of these. We also replace the ResidualBlocks by
-        # the manifold-agnostic one defined above.
-        super().__init__()
-        if manifold_type == 'poincare':
-            self.manifold = PoincareBall(c=Curvature(value=0.1, requires_grad=True))
-        elif manifold_type == 'euclidean':
-            self.manifold = Euclidean()
-        self.resnet = PoincareResNet(args,
-                                     n_classes=n_classes,
-                                     channel_sizes=channel_sizes,
-                                     group_depths=group_depths,
-                                     manifold=self.manifold)
-    
-    def forward(self, x):
-        tangents = TangentTensor(data=x, man_dim=1, manifold=self.manifold)
-        manifold_inputs = self.manifold.expmap(tangents)
-        outputs = self.resnet(manifold_inputs)
-        return outputs
+# Now, let's create a thin Poincare ResNet with channel sizes [4, 8, 16] and with a depth of 20
+# layers.
+net = PoincareResNet(
+    channel_sizes=[4, 8, 16],
+    group_depths=[3, 3, 3],
+    manifold=manifold,
+).to(device)
+
+
+#########################################
+# 4. Define a Loss function and optimizer
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# Let's use a Classification Cross-Entropy loss and RiemannianAdam optimizer.
+
+criterion = nn.CrossEntropyLoss()
+# net.parameters() includes the learnable curvature "c" of the manifold.
+from hypll.optim import RiemannianAdam
+
+optimizer = RiemannianAdam(net.parameters(), lr=0.001)
+
+
+######################
+# 5. Train the network
+# ^^^^^^^^^^^^^^^^^^^^
+# We simply have to loop over our data iterator, project the inputs onto the
+# manifold, and feed them to the network and optimize. We will train for a limited
+# number of epochs here due to the long training time of this model.
+
+from hypll.tensors import TangentTensor
+
+for epoch in range(2):  # Increase this number to at least 100 for good results
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        # get the inputs; data is a list of [inputs, labels]
+
+        inputs, labels = data[0].to(device), data[1].to(device)
+        print(inputs.size())
+
+        # move the inputs to the manifold
+        tangents = TangentTensor(data=inputs, man_dim=1, manifold=manifold)
+        manifold_inputs = manifold.expmap(tangents)
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+
+        # forward + backward + optimize
+        outputs = net(manifold_inputs)
+        loss = criterion(outputs.tensor, labels)
+        loss.backward()
+        optimizer.step()
+
+        # print statistics
+        running_loss += loss.item()
+        print(f"[{epoch + 1}, {i + 1:5d}] loss: {loss.item():.3f}")
+        running_loss = 0.0
+
+print("Finished Training")
+
+
+######################################
+# 6. Test the network on the test data
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
+# Let us look at how the network performs on the whole dataset.
+
+correct = 0
+total = 0
+# since we're not training, we don't need to calculate the gradients for our outputs
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data[0].to(device), data[1].to(device)
+
+        # move the images to the manifold
+        tangents = TangentTensor(data=images, man_dim=1, manifold=manifold)
+        manifold_images = manifold.expmap(tangents)
+
+        # calculate outputs by running images through the network
+        outputs = net(manifold_images)
+        # the class with the highest energy is what we choose as prediction
+        _, predicted = torch.max(outputs.tensor, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(f"Accuracy of the network on the 10000 test images: {100 * correct // total} %")

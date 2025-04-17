@@ -60,22 +60,51 @@ transform = transforms.Compose(
     ]
 )
 
-batch_size = 128
 
-trainset = torchvision.datasets.CIFAR10(
-    root="./data", train=True, download=True, transform=transform
-)
+
+class DatasetArgs:
+    def __init__(self, 
+                 dataset_label_type='brix', 
+                 classification=True, 
+                 n_bins=10, 
+                 pooling_factor=1, 
+                 pooling_func='avg'):
+        self.dataset_label_type = dataset_label_type
+        self.classification = classification
+        self.n_bins = n_bins
+        self.pooling_factor = pooling_factor
+        self.pooling_func = pooling_func
+
+
+from load_data import get_dataset
+from data import KiwiDataset
+
+dataset_type = 'penetro'
+if dataset_type == 'brix':
+    n_bins=10
+else:
+    n_bins=8
+
+dataset_args = DatasetArgs(dataset_label_type=dataset_type, classification=True, n_bins=n_bins, pooling_factor=1, pooling_func='avg')
+dataset, train_size, val_size, test_size, num_classes = get_dataset(dataset_args)
+trainset, val_set, testset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+# img_dim = [204//args.pooling_factor, 180, 180]
+
+batch_size = 4
+
+# trainset = torchvision.datasets.CIFAR10(
+#     root="./data", train=True, download=True, transform=transform
+# )
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=batch_size, shuffle=True, num_workers=2
 )
 
-testset = torchvision.datasets.CIFAR10(
-    root="./data", train=False, download=True, transform=transform
-)
+# testset = torchvision.datasets.CIFAR10(
+#     root="./data", train=False, download=True, transform=transform
+# )
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=batch_size, shuffle=False, num_workers=2
 )
-
 
 ###############################
 # 3. Define a Poincare ResNet
@@ -166,7 +195,7 @@ class PoincareResNet(nn.Module):
         self.manifold = manifold
 
         self.conv = hnn.HConvolution2d(
-            in_channels=3,
+            in_channels=204,
             out_channels=channel_sizes[0],
             kernel_size=3,
             manifold=manifold,
@@ -193,7 +222,8 @@ class PoincareResNet(nn.Module):
         )
 
         self.avg_pool = hnn.HAvgPool2d(kernel_size=8, manifold=manifold)
-        self.fc = hnn.HLinear(in_features=channel_sizes[2], out_features=10, manifold=manifold)
+        self.avg_pool2 = hnn.HAvgPool2d(kernel_size=5, manifold=manifold)
+        self.fc = hnn.HLinear(in_features=channel_sizes[2], out_features=n_bins, manifold=manifold)
 
     def forward(self, x: ManifoldTensor) -> ManifoldTensor:
         x = self.conv(x)
@@ -202,11 +232,9 @@ class PoincareResNet(nn.Module):
         x = self.group1(x)
         x = self.group2(x)
         x = self.group3(x)
-        print(x.size())
         x = self.avg_pool(x)
-        print(x.size())
+        x = self.avg_pool2(x)
         x = self.fc(x.squeeze())
-        print(x.size())
         return x
 
     def _make_group(
@@ -285,7 +313,6 @@ for epoch in range(2):  # Increase this number to at least 100 for good results
         # get the inputs; data is a list of [inputs, labels]
 
         inputs, labels = data[0].to(device), data[1].to(device)
-        print(inputs.size())
 
         # move the inputs to the manifold
         tangents = TangentTensor(data=inputs, man_dim=1, manifold=manifold)
@@ -296,11 +323,10 @@ for epoch in range(2):  # Increase this number to at least 100 for good results
 
         # forward + backward + optimize
         outputs = net(manifold_inputs)
-        loss = criterion(outputs.tensor, labels)
+        loss = criterion(outputs.tensor, labels.long())
         loss.backward()
         optimizer.step()
 
-        break
         # print statistics
         running_loss += loss.item()
         print(f"[{epoch + 1}, {i + 1:5d}] loss: {loss.item():.3f}")
