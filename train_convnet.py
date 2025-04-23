@@ -19,6 +19,9 @@ import matplotlib.pyplot as plt
 
 from hypll.optim import RiemannianAdam
 
+from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam.utils.image import show_cam_on_image
 
 def transform_inputs(inputs, data_transforms, special_modes):
     if 'center_crop' in data_transforms:
@@ -236,6 +239,28 @@ def train(args):
         plt.savefig(f"./imgs/{save_path}.png")
         plt.show()
 
+    if args.gradcam:
+        target_layers = [net.layer4[-1]]
+        example = next(iter(testloader))
+        input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
+        print(input_img.size())
+        print(target.item())
+
+        targets = [ClassifierOutputTarget(int(target.item()))]
+        with GradCAM(model=net, target_layers=target_layers) as cam:
+            grayscale_cam = cam(input_tensor=input_img, targets=targets)
+            # In this example grayscale_cam has only one image in the batch:
+            grayscale_cam = grayscale_cam[0, :]
+            # You can also get the model outputs without having to redo inference
+            model_outputs = cam.outputs
+            plt.imshow(grayscale_cam)
+            plt.xticks([])
+            plt.yticks([])
+            plt.xlabel("")
+            plt.ylabel("")
+            plt.title("GradCAM")
+            plt.savefig(f"./imgs/gradcam_2_{save_path}.png")
+
 
 def main():
     parser=argparse.ArgumentParser(description="Argparser for baseline training script") 
@@ -257,6 +282,7 @@ def main():
     parser.add_argument("--onebyoneconv", action='store_true')
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
     parser.add_argument("--hypll", action='store_true')
+    parser.add_argument("--gradcam", action='store_true')
 
     args = parser.parse_args()
     print(args)
