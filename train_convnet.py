@@ -243,23 +243,26 @@ def train(args):
         target_layers = [net.layer4[-1]]
         example = next(iter(testloader))
         input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
+        input_img, target = example[0].to(device), example[1]
         print(input_img.size())
-        print(target.item())
+        print(target)
 
-        targets = [ClassifierOutputTarget(int(target.item()))]
+        # targets = [ClassifierOutputTarget(int(target.item()))]
+        targets = None
         with GradCAM(model=net, target_layers=target_layers) as cam:
             grayscale_cam = cam(input_tensor=input_img, targets=targets)
             # In this example grayscale_cam has only one image in the batch:
-            grayscale_cam = grayscale_cam[0, :]
-            # You can also get the model outputs without having to redo inference
-            model_outputs = cam.outputs
-            plt.imshow(grayscale_cam)
-            plt.xticks([])
-            plt.yticks([])
-            plt.xlabel("")
-            plt.ylabel("")
-            plt.title("GradCAM")
-            plt.savefig(f"./imgs/gradcam_2_{save_path}.png")
+            for i in range(len(target)):
+                grayscale_cam_img = grayscale_cam[i, :]
+                # You can also get the model outputs without having to redo inference
+                # model_outputs = cam.outputs
+                plt.imshow(grayscale_cam_img)
+                plt.xticks([])
+                plt.yticks([])
+                plt.xlabel("")
+                plt.ylabel("")
+                plt.title("GradCAM")
+                plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
 
 
 def main():
