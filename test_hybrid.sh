@@ -13,4 +13,6 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python3 hybrid_test.py --dataset_label_type brix  --n_bins 10 --classification --seed 1 --plot_preds
+python3 hybrid_test.py --dataset_label_type aweta --n_bins 8 --classification --seed 1 --plot_preds
+# python3 hybrid_test.py --dataset_label_type brix --n_bins 10 --classification --seed 2 --pooling_func min --pooling_factor 4 --plot_preds
+

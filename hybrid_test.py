@@ -119,12 +119,19 @@ def train(args):
                          onebyoneconv=args.onebyoneconv,
                          onebyoneconvdim=args.onebyoneconvdim)
 
-    model_path_euc = f'./models/classif_brix_resnet_30eps_seed7.pth'
+    if args.seed == 1:
+        seeds = (7, 1)
+    elif args.seed == 2:
+        seeds = (69, 2)
+    else:
+        seeds = (0, 0)
+
+    model_path_euc = f'./good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{seeds[0]}.pth'
     net_euc = get_model(euc_args, n_classes=n_classes).to(device)
     net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
     print('loaded from', model_path_euc)
 
-    model_path_hyp = f'./models/classif_brix_poincare_5eps_seed1.pth'
+    model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{seeds[1]}.pth'
     net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
     net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
     print('loaded from', model_path_hyp)
@@ -142,6 +149,9 @@ def train(args):
     predicted_labels = []
 
     hyp_weight = 0.5
+
+    net_euc.eval()
+    net_hyp.eval()
 
     with torch.no_grad():
         for data in testloader:

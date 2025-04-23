@@ -13,20 +13,8 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-# python3 train_convnet.py --dataset_label_type median_penetro --n_epochs 30 --lr 0.0001 --classification --special_modes avg1d --seed 99 --plot_preds
-# python3 train_convnet.py --dataset_label_type median_penetro --n_epochs 30 --lr 0.0001 --classification --resnet --seed 4 --plot_preds --data_transforms center_crop
-# python3 train_convnet.py --dataset_label_type median_penetro --n_epochs 30 --lr 0.00005 --classification --resnet --n_bins 10 --seed 5 --plot_preds --batch_size 16
+# python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001  --classification --resnet --n_bins 10 --seed 7 --plot_preds
+python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --classification --resnet --n_bins 10 --seed 69 --pooling_factor 4 --pooling_func min --plot_preds
 
-
-# python3 train_convnet.py --dataset_label_type penetro --n_epochs 30 --lr 0.00005 --resnet --n_bins 10 --seed 3 --plot_preds
-
-# python3 train_convnet.py --dataset_label_type penetro --n_epochs 30 --lr 0.00005 --classification --resnet --n_bins 8 --seed 3 --eval_only --plot_preds
-
-
-# python3 train_convnet.py --dataset_label_type penetro --n_epochs 30 --lr 0.00001  --classification --resnet --n_bins 8 --seed 69 --pooling_factor 3 --pooling_func min --plot_preds
-# python3 train_convnet.py --dataset_label_type aweta --n_epochs 30 --lr 0.00001  --classification --resnet --n_bins 8 --seed 69 --pooling_factor 4 --pooling_func min --plot_preds
-# python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --classification --resnet --n_bins 10 --seed 69 --pooling_factor 3 --pooling_func min --plot_preds
-
-
-# python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001 --resnet --seed 70 --pooling_factor 4 --pooling_func min --plot_preds
-python3 train_convnet.py --dataset_label_type brix --classification --n_bins 10 --n_epochs 5 --lr 0.01 --hypll --seed 1 --plot_preds
+# python3 train_convnet.py --dataset_label_type aweta --classification --n_bins 8 --n_epochs 5 --lr 0.01 --hypll --seed 1 --plot_preds 
+# python3 train_convnet.py --dataset_label_type aweta --classification --n_bins 8 --n_epochs 5 --lr 0.01 --hypll --seed 2 --pooling_factor 4 --pooling_func min --plot_preds

@@ -109,6 +109,7 @@ def train(args):
 
         for epoch in range(args.n_epochs):
             # TRAIN
+            net.train()
             running_loss = 0.0
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
@@ -153,6 +154,7 @@ def train(args):
             early_stopping_threshold = 5
 
             if epoch % eval_every_n_epochs == 0:
+                net.eval()
                 val_loss = 0.
                 with torch.no_grad():
                     for data in valloader:
@@ -175,6 +177,7 @@ def train(args):
                     if early_stopping_ctr >= early_stopping_threshold:
                         print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
                         break
+                
 
         print(f'{nan_ctr} NaNs')
         print('Finished Training')
@@ -189,6 +192,7 @@ def train(args):
     n_examples = 0
     all_labels = []
     predicted_labels = []
+    net.eval()
 
     with torch.no_grad():
         for data in testloader:

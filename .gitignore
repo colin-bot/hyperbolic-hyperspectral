@@ -6,4 +6,5 @@ data/
 slurm_output/
 data_small/
 models/
+good_models/
 imgs/
