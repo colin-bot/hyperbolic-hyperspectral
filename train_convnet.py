@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from hypll.optim import RiemannianAdam
 
 from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
 def transform_inputs(inputs, data_transforms, special_modes):
@@ -224,15 +224,18 @@ def train(args):
         r2 = r2_score(all_labels, predicted_labels)
         print(f'R2: {r2}')
 
+    print('ground truth')
+    print(all_labels[:50])
+    print('predicted')
+    print(predicted_labels[:50])
+    if args.classification:
+        for i in np.unique(all_labels):
+            print(i, predicted_labels.count(i), all_labels.count(i))
+        label_difference = np.abs(np.array(predicted_labels)-np.array(all_labels))
+        print(label_difference[:50])
+        print(np.mean(label_difference))
+
     if args.plot_preds:
-        print(all_labels[:50])
-        print(predicted_labels[:50])
-        if args.classification:
-            for i in np.unique(all_labels):
-                print(i, predicted_labels.count(i), all_labels.count(i))
-            label_difference = np.abs(np.array(predicted_labels)-np.array(all_labels))
-            print(label_difference[:50])
-            print(np.mean(label_difference))
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
@@ -240,29 +243,44 @@ def train(args):
         plt.show()
 
     if args.gradcam:
+        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=len(test_set),
+                                                    shuffle=shuffle, num_workers=2)
         target_layers = [net.layer4[-1]]
-        example = next(iter(testloader))
-        input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
+        example = next(iter(newtestloader))
+        # input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
         input_img, target = example[0].to(device), example[1]
-        print(input_img.size())
-        print(target)
 
-        # targets = [ClassifierOutputTarget(int(target.item()))]
-        targets = None
+        target_class = args.gradcam_target_class
+
+        if target_class == -1:
+            targets = None
+        else:
+            targets = [ClassifierOutputReST(target_class)] * len(test_set)
         with GradCAM(model=net, target_layers=target_layers) as cam:
             grayscale_cam = cam(input_tensor=input_img, targets=targets)
             # In this example grayscale_cam has only one image in the batch:
-            for i in range(len(target)):
-                grayscale_cam_img = grayscale_cam[i, :]
-                # You can also get the model outputs without having to redo inference
-                # model_outputs = cam.outputs
-                plt.imshow(grayscale_cam_img)
-                plt.xticks([])
-                plt.yticks([])
-                plt.xlabel("")
-                plt.ylabel("")
-                plt.title("GradCAM")
-                plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
+            grayscale_cam_avg = np.mean(grayscale_cam, axis=0)
+            plt.imshow(grayscale_cam_avg)
+            plt.xticks([])
+            plt.yticks([])
+            plt.xlabel("")
+            plt.ylabel("")
+            plt.title("GradCAM avg")
+            targetclasstext = f"class_{target_class}" if target_class != -1 else "avg"
+            plt.savefig(f"./imgs/gradcam_{targetclasstext}_{save_path}.png")
+
+            # for i in range(3):
+            #     grayscale_cam_img = grayscale_cam[i, :]
+            #     # You can also get the model outputs without having to redo inference
+            #     # model_outputs = cam.outputs
+            #     plt.imshow(grayscale_cam_img)
+            #     plt.xticks([])
+            #     plt.yticks([])
+            #     plt.xlabel("")
+            #     plt.ylabel("")
+            #     plt.title(f"GradCAM {i}")
+            #     plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
+            
 
 
 def main():
@@ -286,6 +304,7 @@ def main():
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
     parser.add_argument("--hypll", action='store_true')
     parser.add_argument("--gradcam", action='store_true')
+    parser.add_argument("--gradcam_target_class", type=int, default=-1)
 
     args = parser.parse_args()
     print(args)
