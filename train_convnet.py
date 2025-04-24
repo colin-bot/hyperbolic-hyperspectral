@@ -31,6 +31,38 @@ def transform_inputs(inputs, data_transforms, special_modes):
     return inputs
 
 
+class CombinedLoss(nn.Module):
+    def __init__(self, bin_edges, weights=(1,1,1), regularization_mode='l1'):
+        super(CombinedLoss, self).__init__()
+        self.bin_edges = torch.tensor(bin_edges)
+        self.weights = weights
+        self.mse = nn.MSELoss()
+        self.crossentropy = nn.CrossEntropyLoss()
+        self.regularization_mode = regularization_mode
+    
+    def forward(self, predictions, targets):
+        print(targets)
+        regr_preds = predictions[:,0]
+        clf_preds = predictions[:, 1:]
+        regr_targets = targets[:,0]
+        clf_targets = targets[:,1].long()
+
+        regr_loss = self.mse(regr_preds, regr_targets)
+        clf_loss = self.crossentropy(clf_preds, clf_targets)
+        regularization_loss = self.regularization_term(regr_preds, clf_preds)
+
+        loss = regr_loss * self.weights[0] + clf_loss * self.weights[1] + regularization_loss * self.weights[2]
+        return loss
+
+    def regularization_term(self, regr_preds, clf_preds):
+        predicted_bins = torch.max(clf_preds, dim=1).indices
+        predicted_bin_centers = (self.bin_edges[predicted_bins] + self.bin_edges[predicted_bins + 1]) / 2
+        if self.regularization_mode == 'l1':
+            loss = torch.mean((predicted_bin_centers - regr_preds).abs())
+        elif self.regularization_mode == 'l2':
+            loss = torch.mean((predicted_bin_centers - regr_preds) ** 2)
+        return loss
+
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -41,6 +73,10 @@ def train(args):
 
     ## DATALOADERS ##
     dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
+    if args.combined_loss:
+        bin_edges = dataset[1]
+        dataset = dataset[0]
+        print(bin_edges)
     print(f'dataset size {len(dataset)}')
 
     batch_size = args.batch_size
@@ -85,10 +121,13 @@ def train(args):
     save_path = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
     model_path = f'./models/{save_path}.pth'
     
-    if args.classification:
-        criterion = nn.CrossEntropyLoss()
+    if args.combined_loss:
+        criterion = CombinedLoss(bin_edges=bin_edges)
     else:
-        criterion = nn.MSELoss()
+        if args.classification:
+            criterion = nn.CrossEntropyLoss()
+        else:
+            criterion = nn.MSELoss()
 
     if not args.eval_only:
         net = get_model(args, n_classes=n_classes).to(device)
@@ -135,7 +174,7 @@ def train(args):
                     print(outputs)
                     break
 
-                if args.classification: labels = labels.long()
+                if not args.combined_loss and args.classification: labels = labels.long()
                 else: labels = labels.flatten()
 
                 loss = criterion(outputs, labels)
@@ -242,7 +281,11 @@ def train(args):
                 predicted_labels += outputs.tolist()
 
     if args.classification:
-        print(f'Accuracy: {total_correct / n_examples}')
+        test_acc = total_correct / n_examples
+        print(f'Accuracy: {test_acc}')
+        file = open("output.txt", "a")
+        file.write(f"{save_path}, test acc {test_acc}\n")
+        file.close()
     else:
         print(f'Average MSE: {total_loss / n_examples}')
         r2 = r2_score(all_labels, predicted_labels)
@@ -329,6 +372,7 @@ def main():
     parser.add_argument("--hypll", action='store_true')
     parser.add_argument("--gradcam", action='store_true')
     parser.add_argument("--gradcam_target_class", type=int, default=-1)
+    parser.add_argument("--combined_loss", action='store_true') #regression with classification as regularizer
 
     args = parser.parse_args()
     print(args)

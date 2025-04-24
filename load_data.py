@@ -67,6 +67,35 @@ def load_dataset(args):
     return concatenated_dataset
 
 
+def load_dataset_combined(args):
+    if args.dataset_label_type=='brix':
+        labels_arr = np.load('data/brixes.npy')
+    if args.dataset_label_type=='aweta':
+        labels_arr = np.load('data/awetas.npy')
+    if args.dataset_label_type=='penetro':
+        labels_arr = np.load('data/penetros.npy')
+
+    _, bin_edges = np.histogram(labels_arr, bins=args.n_bins)
+    labels_clf_arr = np.digitize(labels_arr, bin_edges[1:-1])
+
+    labels_arr = [x for x in zip(labels_arr, labels_clf_arr)]
+
+    dataset_list = []
+    for i in range(11):
+        # dataset_list.append(load(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt'))
+        dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_{i*100}-{(i+1)*100}.pt', args)
+        dataset_tmp.labels = torch.tensor(labels_arr[i*100:(i+1)*100])
+        dataset_list.append(dataset_tmp)
+    # dataset_list.append(load(f'data/kiwi_dataset_1100-1172.pt'))
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_1100-1172.pt', args)
+    print(dataset_tmp.samples.size())
+    dataset_tmp.labels = torch.tensor(labels_arr[1100:1172])
+    dataset_list.append(dataset_tmp)
+
+    concatenated_dataset = ConcatDataset(dataset_list)
+    return concatenated_dataset, bin_edges
+
+
 def load_dummy_dataset():
     # classification dataset thats either kiwi data or random
     dataset_list = []
@@ -210,7 +239,10 @@ def get_dataset(args):
         else:
             n_classes = 3
     else:
-        dataset = load_dataset(args)
+        if args.combined_loss:
+            dataset = load_dataset_combined(args)
+        else:
+            dataset = load_dataset(args)
         train_size = 1000
         val_size = 72
         test_size = 100

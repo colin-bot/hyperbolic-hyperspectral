@@ -178,8 +178,14 @@ def train(args):
             else:
                 predicted_labels += outputs.tolist()
 
+    save_path = f'hybrid_{args.dataset_label_type}_seed_{args.seed}'
+
     if args.classification:
-        print(f'Accuracy: {total_correct / n_examples}')
+        test_acc = total_correct / n_examples
+        print(f'Accuracy: {test_acc}')
+        file = open("output.txt", "a")
+        file.write(f"{save_path}, test acc {test_acc}\n")
+        file.close()
     else:
         print(f'Average MSE: {total_loss / n_examples}')
         r2 = r2_score(all_labels, predicted_labels)
@@ -197,7 +203,6 @@ def train(args):
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        save_path = 'hybrid'
         plt.savefig(f"./imgs/{save_path}.png")
         plt.show()
 

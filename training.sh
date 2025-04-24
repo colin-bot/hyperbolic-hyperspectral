@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=4
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -21,6 +21,7 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 SEED=$1
 LABELTYPE=$2
+MODE=$3
 
 if [ -z "$SEED" ]
 then
@@ -32,6 +33,11 @@ then
     LABELTYPE=brix
 fi
 
+if [ -z "$MODE" ]
+then
+    LABELTYPE=train_euc
+fi
+
 if [[ "$LABELTYPE" == "brix" ]]; then
     NBINS=10
 elif [[ "$LABELTYPE" == "aweta" ]]; then
@@ -40,6 +46,14 @@ elif [[ "$LABELTYPE" == "penetro" ]]; then
     NBINS=8
 fi
 
-if [[ $SEED == "1" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed 1
+if [[ $MODE == "train_euc" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED
+elif [[ $MODE == "train_euc_pooled" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --pooling_factor 4 --pooling_func min
+elif [[ $MODE == "eval_euc" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only
+elif [[ $MODE == "eval_euc_pooled" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --pooling_factor 4 --pooling_func min
+elif [[ $MODE == "test" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --combined_loss
 fi

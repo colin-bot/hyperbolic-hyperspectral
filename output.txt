@@ -1,0 +1,13 @@
+classif_brix_resnet_30eps_seed1, test acc 0.23
+classif_aweta_resnet_30eps_seed1, test acc 0.26
+classif_penetro_resnet_30eps_seed1, test acc 0.34
+
+classif_brix_resnet_30eps_seed2, test acc 0.27
+classif_aweta_resnet_30eps_seed2, test acc 0.28
+classif_penetro_resnet_30eps_seed2, test acc 0.3
+hybrid_aweta_seed_1, test acc 0.26
+hybrid_penetro_seed_1, test acc 0.34
+hybrid_brix_seed_1, test acc 0.23
+hybrid_aweta_seed_2, test acc 0.24
+hybrid_penetro_seed_2, test acc 0.3
+hybrid_brix_seed_2, test acc 0.3
