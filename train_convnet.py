@@ -103,6 +103,7 @@ def train(args):
 
         nan_ctr=0
         best_val_loss=np.inf
+        best_val_acc = -1.
         early_stopping_ctr=0
 
         if 'rd90rot' in data_transforms:
@@ -159,6 +160,9 @@ def train(args):
             if epoch % eval_every_n_epochs == 0:
                 net.eval()
                 val_loss = 0.
+                true_labels = []
+                predicted_labels = []
+                correct = 0
                 with torch.no_grad():
                     for data in valloader:
                         inputs, labels = data[0].to(device), data[1].to(device)
@@ -169,17 +173,37 @@ def train(args):
                         if args.classification: labels = labels.long()
                         loss = criterion(outputs, labels)
                         val_loss += loss
-                if val_loss < best_val_loss:
-                    print(f'New best validation loss: {val_loss}')
-                    best_val_loss = val_loss
-                    torch.save(net.state_dict(), model_path)
-                    print('saved to', model_path)
-                    early_stopping_ctr = 0
-                else:
-                    early_stopping_ctr += 1
-                    if early_stopping_ctr >= early_stopping_threshold:
-                        print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
-                        break
+    
+                        true_labels += labels.tolist()
+                        _, predicted = torch.max(outputs, 1)
+                        predicted_labels += predicted.tolist()
+                        correct += (predicted == labels).sum().item()
+            
+                if args.classification:
+                    val_acc = correct / len(true_labels)
+                    if val_acc > best_val_acc:
+                        print(f'New best validation accuracy: {val_acc}')
+                        best_val_acc = val_acc
+                        torch.save(net.state_dict(), model_path)
+                        print('saved to', model_path)
+                        early_stopping_ctr = 0
+                    else:
+                        early_stopping_ctr += 1
+                        if early_stopping_ctr >= early_stopping_threshold:
+                            print(f'{early_stopping_threshold} consecutive validation epochs with worse accuracy, stopping training.')
+                            break
+                else: 
+                    if val_loss < best_val_loss:
+                        print(f'New best validation loss: {val_loss}')
+                        best_val_loss = val_loss
+                        torch.save(net.state_dict(), model_path)
+                        print('saved to', model_path)
+                        early_stopping_ctr = 0
+                    else:
+                        early_stopping_ctr += 1
+                        if early_stopping_ctr >= early_stopping_threshold:
+                            print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
+                            break
                 
 
         print(f'{nan_ctr} NaNs')

@@ -119,19 +119,12 @@ def train(args):
                          onebyoneconv=args.onebyoneconv,
                          onebyoneconvdim=args.onebyoneconvdim)
 
-    if args.seed == 1:
-        seeds = (7, 1)
-    elif args.seed == 2:
-        seeds = (69, 2)
-    else:
-        seeds = (0, 0)
-
-    model_path_euc = f'./good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{seeds[0]}.pth'
+    model_path_euc = f'./good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{args.seed}.pth'
     net_euc = get_model(euc_args, n_classes=n_classes).to(device)
     net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
     print('loaded from', model_path_euc)
 
-    model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{seeds[1]}.pth'
+    model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{args.seed}.pth'
     net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
     net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
     print('loaded from', model_path_hyp)
@@ -148,7 +141,7 @@ def train(args):
     all_labels = []
     predicted_labels = []
 
-    hyp_weight = 0.5
+    hyp_weight = args.hyp_weight
 
     net_euc.eval()
     net_hyp.eval()
@@ -178,7 +171,8 @@ def train(args):
             n_examples += len(labels)
             all_labels += labels.tolist()
             if args.classification:
-                _, predicted = torch.max(outputs, 1)
+                # outputs = F.softmax(outputs, dim=1)
+                _, predicted = torch.max(outputs, dim=1)
                 total_correct += (predicted == labels).sum().item()
                 predicted_labels += predicted.tolist()
             else:
@@ -228,6 +222,7 @@ def main():
     parser.add_argument("--onebyoneconv", action='store_true')
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
     parser.add_argument("--hypll", action='store_true')
+    parser.add_argument("--hyp_weight", type=float, default=0.5)
 
     args = parser.parse_args()
     print(args)

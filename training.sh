@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_h100
+#SBATCH --partition=gpu_a100
 #SBATCH --gpus=4
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -14,7 +14,32 @@ module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 # python3 train_convnet.py --dataset_label_type brix --n_epochs 30 --lr 0.00001  --classification --resnet --n_bins 10 --seed 7 --eval_only --gradcam --gradcam_target_class 6
-python3 train_convnet.py --dataset_label_type aweta --n_epochs 30 --lr 0.00001 --classification --resnet --n_bins 8 --seed 69 --pooling_factor 4 --pooling_func min --eval_only --gradcam --gradcam_target_class 4
+# python3 train_convnet.py --dataset_label_type aweta --n_epochs 30 --lr 0.00001 --classification --resnet --n_bins 8 --seed 69 --pooling_factor 4 --pooling_func min --eval_only --gradcam --gradcam_target_class 4
 
 # python3 train_convnet.py --dataset_label_type aweta --classification --n_bins 8 --n_epochs 5 --lr 0.01 --hypll --seed 1 
 # python3 train_convnet.py --dataset_label_type brix --classification --n_bins 10 --n_epochs 10 --lr 0.001 --hypll --seed 2 --pooling_factor 4 --pooling_func min
+
+SEED=$1
+LABELTYPE=$2
+
+if [ -z "$SEED" ]
+then
+    SEED=1
+fi
+
+if [ -z "$LABELTYPE" ]
+then
+    LABELTYPE=brix
+fi
+
+if [[ "$LABELTYPE" == "brix" ]]; then
+    NBINS=10
+elif [[ "$LABELTYPE" == "aweta" ]]; then
+    NBINS=8
+elif [[ "$LABELTYPE" == "penetro" ]]; then
+    NBINS=8
+fi
+
+if [[ $SEED == "1" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed 1
+fi
