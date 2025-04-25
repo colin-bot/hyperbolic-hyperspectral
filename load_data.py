@@ -78,7 +78,7 @@ def load_dataset_combined(args):
     _, bin_edges = np.histogram(labels_arr, bins=args.n_bins)
     labels_clf_arr = np.digitize(labels_arr, bin_edges[1:-1])
 
-    labels_arr = [x for x in zip(labels_arr, labels_clf_arr)]
+    labels_arr = [[float(x[0]), float(x[1])] for x in zip(labels_arr, labels_clf_arr)]
 
     dataset_list = []
     for i in range(11):

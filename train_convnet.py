@@ -32,26 +32,27 @@ def transform_inputs(inputs, data_transforms, special_modes):
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, bin_edges, weights=(1,1,1), regularization_mode='l1'):
+    def __init__(self, bin_edges, weights=(0.1,1.,1.), regularization_mode='l1'):
         super(CombinedLoss, self).__init__()
-        self.bin_edges = torch.tensor(bin_edges)
+        self.bin_edges = bin_edges
         self.weights = weights
         self.mse = nn.MSELoss()
         self.crossentropy = nn.CrossEntropyLoss()
         self.regularization_mode = regularization_mode
     
     def forward(self, predictions, targets):
-        print(targets)
-        regr_preds = predictions[:,0]
+        regr_preds = predictions[:,0]            
         clf_preds = predictions[:, 1:]
-        regr_targets = targets[:,0]
-        clf_targets = targets[:,1].long()
+        targets = targets.flatten()
+        clf_targets = targets[1::2].long()
+        regr_targets = targets[::2]
 
         regr_loss = self.mse(regr_preds, regr_targets)
         clf_loss = self.crossentropy(clf_preds, clf_targets)
         regularization_loss = self.regularization_term(regr_preds, clf_preds)
 
         loss = regr_loss * self.weights[0] + clf_loss * self.weights[1] + regularization_loss * self.weights[2]
+        
         return loss
 
     def regularization_term(self, regr_preds, clf_preds):
@@ -104,7 +105,9 @@ def train(args):
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
 
-    if args.classification:
+    if args.combined_loss:
+        pathtmp = "combined"
+    elif args.classification:
         pathtmp = "classif"
     else:
         pathtmp="regress"
@@ -122,7 +125,7 @@ def train(args):
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
-        criterion = CombinedLoss(bin_edges=bin_edges)
+        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device))
     else:
         if args.classification:
             criterion = nn.CrossEntropyLoss()
@@ -209,17 +212,24 @@ def train(args):
                         # calculate outputs by running images through the network
                         outputs = net(inputs)
                         if args.hypll: outputs = outputs.tensor
-                        if args.classification: labels = labels.long()
+                        if not args.combined_loss and args.classification: labels = labels.long()
                         loss = criterion(outputs, labels)
                         val_loss += loss
     
-                        true_labels += labels.tolist()
-                        _, predicted = torch.max(outputs, 1)
+                        if args.combined_loss:
+                            clf_labels = labels.flatten()[1::2]
+                            true_labels += clf_labels.tolist()
+                            _, predicted = torch.max(outputs[:, 1:], 1)
+                            correct += (predicted == clf_labels).sum().item()
+                        else:
+                            true_labels += labels.tolist()
+                            _, predicted = torch.max(outputs, 1)
+                            correct += (predicted == labels).sum().item()
+
                         predicted_labels += predicted.tolist()
-                        correct += (predicted == labels).sum().item()
             
-                if args.classification:
-                    val_acc = correct / len(true_labels)
+                val_acc = correct / len(true_labels)
+                if args.classification and not args.combined_loss:
                     if val_acc > best_val_acc:
                         print(f'New best validation accuracy: {val_acc}')
                         best_val_acc = val_acc
@@ -234,6 +244,7 @@ def train(args):
                 else: 
                     if val_loss < best_val_loss:
                         print(f'New best validation loss: {val_loss}')
+                        if args.combined_loss: print(f'val acc {val_acc}')
                         best_val_loss = val_loss
                         torch.save(net.state_dict(), model_path)
                         print('saved to', model_path)
@@ -258,6 +269,8 @@ def train(args):
     n_examples = 0
     all_labels = []
     predicted_labels = []
+    regr_labels = []
+    regr_preds = []
     net.eval()
 
     with torch.no_grad():
@@ -267,20 +280,35 @@ def train(args):
 
             # calculate outputs by running images through the network
             outputs = net(inputs)
-            if args.classification: labels = labels.long()
+            if args.classification and not args.combined_loss: labels = labels.long()
             if args.hypll: outputs = outputs.tensor
             loss = criterion(outputs, labels)
             total_loss += loss
             n_examples += len(labels)
-            all_labels += labels.tolist()
             if args.classification:
-                _, predicted = torch.max(outputs, 1)
-                total_correct += (predicted == labels).sum().item()
+                if args.combined_loss:
+                    tmp_labels = labels.flatten()
+                    clf_labels = tmp_labels[1::2].long()
+                    all_labels += clf_labels.tolist()
+                    regr_labels += tmp_labels[::2].tolist()
+                    _, predicted = torch.max(outputs[:, 1:], 1)
+                    regr_preds += outputs[:, 0].flatten().tolist()
+                    total_correct += (predicted == clf_labels).sum().item()
+                else:
+                    all_labels += labels.tolist()
+                    _, predicted = torch.max(outputs, 1)
+                    total_correct += (predicted == labels).sum().item()
                 predicted_labels += predicted.tolist()
             else:
+                all_labels += labels.tolist()
                 predicted_labels += outputs.tolist()
 
-    if args.classification:
+    if args.combined_loss:
+        test_acc = total_correct / n_examples
+        print(f'Accuracy: {test_acc}')
+        r2 = r2_score(regr_labels, regr_preds)
+        print(f'R2: {r2}')
+    elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
         file = open("output.txt", "a")

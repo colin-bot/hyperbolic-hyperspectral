@@ -11,3 +11,5 @@ hybrid_brix_seed_1, test acc 0.23
 hybrid_aweta_seed_2, test acc 0.24
 hybrid_penetro_seed_2, test acc 0.3
 hybrid_brix_seed_2, test acc 0.3
+classif_brix_resnet_30eps_seed1, test acc 0.02
+classif_brix_resnet_30eps_seed1, test acc 0.22

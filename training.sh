@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_h100
-#SBATCH --gpus=4
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --gpus-per-node=4
+#SBATCH --cpus-per-task=16
+#SBATCH --gpus-per-node=1
 #SBATCH --time=10:00:00
 #SBATCH --output=slurm_output/training_%A.out
 
