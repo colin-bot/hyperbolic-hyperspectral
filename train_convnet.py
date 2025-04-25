@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 from hypll.optim import RiemannianAdam
 
-from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam import GradCAM, HiResCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
@@ -339,11 +339,13 @@ def train(args):
 
     if args.gradcam:
         newtestloader = torch.utils.data.DataLoader(test_set, batch_size=len(test_set),
-                                                    shuffle=shuffle, num_workers=2)
+                                                    shuffle=shuffle, num_workers=2)        
+
         target_layers = [net.layer4[-1]]
         example = next(iter(newtestloader))
         # input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
         input_img, target = example[0].to(device), example[1]
+        print(input_img.size())
 
         target_class = args.gradcam_target_class
 
@@ -353,6 +355,7 @@ def train(args):
             targets = [ClassifierOutputReST(target_class)] * len(test_set)
         with GradCAM(model=net, target_layers=target_layers) as cam:
             grayscale_cam = cam(input_tensor=input_img, targets=targets)
+            print(grayscale_cam.shape)
             # In this example grayscale_cam has only one image in the batch:
             grayscale_cam_avg = np.mean(grayscale_cam, axis=0)
             plt.imshow(grayscale_cam_avg)
@@ -377,6 +380,38 @@ def train(args):
             #     plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
             
 
+        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=1,
+                                                    shuffle=shuffle, num_workers=2)
+        example = next(iter(newtestloader))
+        input_img, target = gradcam_helper(example[0]).to(device), int(example[1])
+        targets = [ClassifierOutputReST(target)] * input_img.size()[0]
+
+        print(input_img[0][0])
+        print(input_img[0][1])
+        print(input_img[1][1])
+        print(input_img[1][0])
+
+        with GradCAM(model=net, target_layers=target_layers) as cam:
+            grayscale_cam = cam(input_tensor=input_img, targets=targets)
+            gradcam_per_channel = np.mean(grayscale_cam, axis=(1,2))
+            print(gradcam_per_channel)    
+            plt.clf()
+            plt.plot(range(len(gradcam_per_channel)), gradcam_per_channel)
+            plt.savefig(f"./imgs/gradcam_channels_{save_path}.png")
+
+def gradcam_helper(input_img):
+    input_img = input_img.squeeze()
+    n_channels = input_img.size()[0]
+    input_img = torch.stack(tuple([input_img] * n_channels))
+    print(input_img.size())
+    for i in range(n_channels):
+        for j in range(n_channels):
+            if j == i: continue
+            input_img[i][j] = 0.
+        #TEST:
+        # input_img[i][0] = input_img[i][i]
+        # if i != 0: input_img[i][i] = 0.
+    return input_img
 
 def main():
     parser=argparse.ArgumentParser(description="Argparser for baseline training script") 
