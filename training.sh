@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -29,8 +29,10 @@ fi
 
 if [ -z "$MODE" ]
 then
-    LABELTYPE=train_euc
+    MODE=train_euc
 fi
+
+NBINS=2
 
 if [[ "$LABELTYPE" == "brix" ]]; then
     NBINS=10
@@ -41,9 +43,11 @@ elif [[ "$LABELTYPE" == "penetro" ]]; then
 fi
 
 if [[ $MODE == "train_euc" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --hypll --seed $SEED
 elif [[ $MODE == "train_euc_pooled" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --pooling_factor 4 --pooling_func min
+elif [[ $MODE == "train_euc_pooled_regr" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
 elif [[ $MODE == "eval_euc" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only
 elif [[ $MODE == "eval_euc_pooled" ]]; then
@@ -52,4 +56,10 @@ elif [[ $MODE == "test" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --combined_loss
 elif [[ $MODE == "gradcam" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --gradcam
+elif [[ $MODE == "train_hyp_pooled_regr" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --hypll --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
+elif [[ $MODE == "test_hyp" ]]; then
+    python3 train_convnet.py --dataset_label_type median_penetro --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
 fi
+
+# python3 train_convnet.py --dataset_label_type dummy --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED

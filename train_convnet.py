@@ -16,8 +16,10 @@ import torch.optim as optim
 from sklearn.metrics import r2_score
 import argparse
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter1d
 
 from hypll.optim import RiemannianAdam
+from hypll.tensors import ManifoldParameter
 
 from pytorch_grad_cam import GradCAM, HiResCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
@@ -31,14 +33,22 @@ def transform_inputs(inputs, data_transforms, special_modes):
     return inputs
 
 
+def blur_labels(labels, num_classes):
+    labels = F.one_hot(labels, num_classes=num_classes).float()
+    labels = torch.tensor(gaussian_filter1d(labels, sigma=1, axis=1))
+    return labels
+
+
 class CombinedLoss(nn.Module):
-    def __init__(self, bin_edges, weights=(0.1,1.,1.), regularization_mode='l1'):
+    def __init__(self, bin_edges, weights=(0.1,1.,1.), regularization_mode='l1', blur_labels=False, num_classes=8):
         super(CombinedLoss, self).__init__()
         self.bin_edges = bin_edges
         self.weights = weights
         self.mse = nn.MSELoss()
         self.crossentropy = nn.CrossEntropyLoss()
         self.regularization_mode = regularization_mode
+        self.blur_labels = blur_labels
+        self.num_classes = num_classes
     
     def forward(self, predictions, targets):
         regr_preds = predictions[:,0]            
@@ -48,6 +58,8 @@ class CombinedLoss(nn.Module):
         regr_targets = targets[::2]
 
         regr_loss = self.mse(regr_preds, regr_targets)
+        if self.blur_labels:
+            clf_targets = blur_labels(clf_targets, num_classes=self.num_classes)
         clf_loss = self.crossentropy(clf_preds, clf_targets)
         regularization_loss = self.regularization_term(regr_preds, clf_preds)
 
@@ -63,6 +75,7 @@ class CombinedLoss(nn.Module):
         elif self.regularization_mode == 'l2':
             loss = torch.mean((predicted_bin_centers - regr_preds) ** 2)
         return loss
+
 
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -87,7 +100,10 @@ def train(args):
         val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
         test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        # Set seed
+        generator1 = torch.Generator().manual_seed(42)
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
+        # train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
 
     print('train val test size', len(train_set), len(val_set), len(test_set))
 
@@ -95,9 +111,9 @@ def train(args):
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
                                               shuffle=shuffle, num_workers=2)
     valloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size,
-                                              shuffle=shuffle, num_workers=2)
+                                              shuffle=False, num_workers=2)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
-                                             shuffle=shuffle, num_workers=2)
+                                             shuffle=False, num_workers=2)
 
     ## TRAIN ## 
     if args.data_transforms: data_transforms = args.data_transforms.split('-')
@@ -125,16 +141,28 @@ def train(args):
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
-        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device))
+        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes)
     else:
         if args.classification:
-            criterion = nn.CrossEntropyLoss()
+            criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         else:
             criterion = nn.MSELoss()
 
     if not args.eval_only:
         net = get_model(args, n_classes=n_classes).to(device)
     
+        # print(net)
+
+        n_params = 0
+        for name, p in net.named_parameters():
+            if isinstance(p, ManifoldParameter):
+                # print(name, p.tensor.abs().mean())
+                n_params += p.tensor.numel()
+            else:
+                # print(name, p.abs().mean())
+                n_params += p.numel()
+        print(f'{n_params} parameters')
+
         # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
         if args.hypll:
             optimizer = RiemannianAdam(net.parameters(), lr=args.lr)
@@ -159,17 +187,26 @@ def train(args):
             running_loss = 0.0
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
-                inputs, labels = data[0].to(device), data[1].to(device)
+                inputs, labels = data[0], data[1]
                 if augmentation:
                     inputs = augmentation(inputs)
 
                 inputs = transform_inputs(inputs, data_transforms, special_modes)
+
+                if not args.combined_loss and args.classification: labels = labels.long()
+                else: labels = labels.flatten()
+
+                if args.blur_labels:
+                    labels = blur_labels(labels, num_classes=n_classes)
+
+                inputs, labels = inputs.to(device), labels.to(device)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
                 outputs = net(inputs)
+
                 if args.hypll: outputs = outputs.tensor
 
                 if torch.isnan(outputs).any():
@@ -177,23 +214,31 @@ def train(args):
                     print(outputs)
                     break
 
-                if not args.combined_loss and args.classification: labels = labels.long()
-                else: labels = labels.flatten()
-
                 loss = criterion(outputs, labels)
                 if torch.isnan(loss):
                     print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
                     nan_ctr += 1
 
                 loss.backward()
+
+                # for name, param in net.named_parameters():
+                    # if isinstance(p, ManifoldParameter):
+                        # print(name, param.grad.tensor.abs().mean())
+                    # else:
+                        # print(name, param.grad.abs().mean())
+
+                # break
+
                 optimizer.step()
 
                 # print statistics
                 running_loss += loss.item()
                 if i % 100 == 99:    # print every 100 mini-batches
+                    print(f'minibatch loss {loss.item()}')
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
                 
+                # print(loss.item())
             
             # VALIDATION
             eval_every_n_epochs = 1 #todo make into args?
@@ -205,6 +250,7 @@ def train(args):
                 true_labels = []
                 predicted_labels = []
                 correct = 0
+                first_minibatch = True
                 with torch.no_grad():
                     for data in valloader:
                         inputs, labels = data[0].to(device), data[1].to(device)
@@ -227,6 +273,11 @@ def train(args):
                             correct += (predicted == labels).sum().item()
 
                         predicted_labels += predicted.tolist()
+
+                        if first_minibatch:
+                            print(labels, predicted)
+                            print(outputs)
+                            first_minibatch = False
             
                 val_acc = correct / len(true_labels)
                 if args.classification and not args.combined_loss:
@@ -436,6 +487,7 @@ def main():
     parser.add_argument("--gradcam", action='store_true')
     parser.add_argument("--gradcam_target_class", type=int, default=-1)
     parser.add_argument("--combined_loss", action='store_true') #regression with classification as regularizer
+    parser.add_argument("--blur_labels", action='store_true')
 
     args = parser.parse_args()
     print(args)

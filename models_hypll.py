@@ -106,7 +106,8 @@ class PoincareResNet(nn.Module):
         self.manifold = manifold
 
         self.conv = hnn.HConvolution2d(
-            in_channels=204//args.pooling_factor,
+            # in_channels=204//args.pooling_factor,
+            in_channels=3,
             out_channels=channel_sizes[0],
             kernel_size=3,
             manifold=manifold,
@@ -133,7 +134,7 @@ class PoincareResNet(nn.Module):
         )
 
         self.avg_pool = hnn.HAvgPool2d(kernel_size=8, manifold=manifold)
-        self.avg_pool2 = hnn.HAvgPool2d(kernel_size=5, manifold=manifold)
+        # self.avg_pool2 = hnn.HAvgPool2d(kernel_size=5, manifold=manifold)
         self.fc = hnn.HLinear(in_features=channel_sizes[2], out_features=n_classes, manifold=manifold)
 
     def forward(self, x: ManifoldTensor) -> ManifoldTensor:
@@ -144,7 +145,7 @@ class PoincareResNet(nn.Module):
         x = self.group2(x)
         x = self.group3(x)
         x = self.avg_pool(x)
-        x = self.avg_pool2(x)
+        # x = self.avg_pool2(x)
         x = x.squeeze()
         x = self.fc(x)
         return x

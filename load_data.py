@@ -3,7 +3,8 @@ from torch.utils.data import ConcatDataset
 import torch
 import numpy as np
 from skimage.measure import block_reduce
-
+from torchvision.datasets import CIFAR10
+from torchvision.transforms import ToTensor
 
 def spectral_pooling(tens, factor=4, method='avg'):
     if method == 'avg':
@@ -96,15 +97,14 @@ def load_dataset_combined(args):
     return concatenated_dataset, bin_edges
 
 
-def load_dummy_dataset():
+def load_dummy_dataset(args):
     # classification dataset thats either kiwi data or random
     dataset_list = []
 
-    dataset_tmp = torch.load(f'data/kiwi_dataset_0-100.pt')
-    dataset_tmp.samples = z_score(dataset_tmp.samples)
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_0-100.pt', args)
     dataset_tmp.labels = torch.ones(len(dataset_tmp.labels))
     dataset_list.append(dataset_tmp)
-    dataset_tmp = torch.load(f'data/kiwi_dataset_100-200.pt')
+    dataset_tmp = load_wrap_normalize(f'data/kiwi_dataset_100-200.pt', args)
     dataset_tmp.samples = torch.normal(mean=torch.zeros_like(dataset_tmp.samples), std=1.0)
     dataset_tmp.labels = torch.zeros(len(dataset_tmp.labels))
     dataset_list.append(dataset_tmp)
@@ -209,13 +209,27 @@ def load_easy_dataset(args):
     return concatenated_dataset
 
 
+def get_cifar():
+    dataset_list = []
+    dataset_list.append(CIFAR10(root='./data', train=True, transform=ToTensor(), download=True))
+    dataset_list.append(CIFAR10(root='./data', train=False, transform=ToTensor(), download=True))
+    concatenated_dataset = ConcatDataset(dataset_list)
+    return concatenated_dataset
+
+
 def get_dataset(args):
     if args.dataset_label_type == "dummy":
-        dataset = load_dummy_dataset()
+        dataset = load_dummy_dataset(args)
         train_size = 160
         val_size = 20
         test_size = 20
         n_classes = 2
+    elif args.dataset_label_type == "cifar":
+        dataset = get_cifar()
+        train_size = 40000
+        val_size = 10000
+        test_size = 10000
+        n_classes = 10
     elif "median" in args.dataset_label_type:
         print(args.dataset_label_type)
         dataset = load_median_dataset(args)
@@ -249,7 +263,6 @@ def get_dataset(args):
         n_classes = args.n_bins
     
     return dataset, train_size, val_size, test_size, n_classes
-
 
 def main(): # for testing
     print('penetro')

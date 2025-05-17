@@ -130,23 +130,28 @@ def get_model(args, n_classes=2):
         if 'avg1d' in args.special_modes.split('-'):
             model = FCNet(n_classes=2)
     elif args.hypll:
+        if not args.classification: n_classes = 1
+        if args.combined_loss: n_classes += 1
         model = PoincareResNetModel(args,
                                     n_classes=n_classes,
                                     channel_sizes=[4, 8, 16],
-                                    group_depths=[3, 3, 3],
+                                    group_depths=[4, 4, 3],
                                     manifold_type='poincare')
     else:
         if args.resnet:
             model = resnet34()
+            base_dim = 204
+            if args.dataset_label_type == 'cifar': base_dim = 3
             if args.onebyoneconv:
                 model.conv1 = nn.Sequential(
-                    nn.Conv2d(204//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
+                    nn.Conv2d(base_dim//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
                     nn.BatchNorm2d(args.onebyoneconvdim),
                     nn.ReLU(),
                     nn.Conv2d(args.onebyoneconvdim, 64, kernel_size=(7,7), stride=(3,3), padding=(3,3), bias=False)
                 )
             else:
-                model.conv1 = nn.Conv2d(204//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+
+                model.conv1 = nn.Conv2d(base_dim//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
             if not args.classification: n_classes = 1
             if args.combined_loss: n_classes += 1
             # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
