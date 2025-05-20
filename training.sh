@@ -52,8 +52,8 @@ elif [[ $MODE == "eval_euc" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only
 elif [[ $MODE == "eval_euc_pooled" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --pooling_factor 4 --pooling_func min
-elif [[ $MODE == "test" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --combined_loss
+elif [[ $MODE == "combined_loss" ]]; then
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --combined_loss --blur_labels --eval_only --plot_preds
 elif [[ $MODE == "gradcam" ]]; then
     python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --gradcam
 elif [[ $MODE == "train_hyp_pooled_regr" ]]; then

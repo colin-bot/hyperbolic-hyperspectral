@@ -33,14 +33,14 @@ def transform_inputs(inputs, data_transforms, special_modes):
     return inputs
 
 
-def blur_labels(labels, num_classes):
-    labels = F.one_hot(labels, num_classes=num_classes).float()
-    labels = torch.tensor(gaussian_filter1d(labels, sigma=1, axis=1))
+def blur_labels(labels, num_classes, device):
+    labels = F.one_hot(labels.cpu(), num_classes=num_classes).float()
+    labels = torch.tensor(gaussian_filter1d(labels, sigma=1, axis=1)).to(device)
     return labels
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, bin_edges, weights=(0.1,1.,1.), regularization_mode='l1', blur_labels=False, num_classes=8):
+    def __init__(self, bin_edges, weights=(0.01,1.,0.1), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
         super(CombinedLoss, self).__init__()
         self.bin_edges = bin_edges
         self.weights = weights
@@ -49,6 +49,7 @@ class CombinedLoss(nn.Module):
         self.regularization_mode = regularization_mode
         self.blur_labels = blur_labels
         self.num_classes = num_classes
+        self.device = device
     
     def forward(self, predictions, targets):
         regr_preds = predictions[:,0]            
@@ -59,7 +60,7 @@ class CombinedLoss(nn.Module):
 
         regr_loss = self.mse(regr_preds, regr_targets)
         if self.blur_labels:
-            clf_targets = blur_labels(clf_targets, num_classes=self.num_classes)
+            clf_targets = blur_labels(clf_targets, num_classes=self.num_classes, device=self.device)
         clf_loss = self.crossentropy(clf_preds, clf_targets)
         regularization_loss = self.regularization_term(regr_preds, clf_preds)
 
@@ -141,7 +142,7 @@ def train(args):
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
-        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes)
+        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
     else:
         if args.classification:
             criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
@@ -196,8 +197,8 @@ def train(args):
                 if not args.combined_loss and args.classification: labels = labels.long()
                 else: labels = labels.flatten()
 
-                if args.blur_labels:
-                    labels = blur_labels(labels, num_classes=n_classes)
+                if not args.combined_loss and args.blur_labels:
+                    labels = blur_labels(labels, num_classes=n_classes, device=device)
 
                 inputs, labels = inputs.to(device), labels.to(device)
 
@@ -382,7 +383,14 @@ def train(args):
         print(np.mean(label_difference))
 
     if args.plot_preds:
-        plt.scatter(all_labels, predicted_labels)
+        if args.combined_loss: 
+            plt.scatter(regr_labels, regr_preds)
+            min_val, max_val = min(regr_labels + regr_preds), max(regr_labels + regr_preds)
+        else: 
+            plt.scatter(all_labels, predicted_labels)
+            min_val, max_val = min(all_labels + predicted_labels), max(all_labels + predicted_labels)
+
+        plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
         plt.savefig(f"./imgs/{save_path}.png")
