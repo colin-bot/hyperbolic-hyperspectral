@@ -93,6 +93,7 @@ class PoincareResNet(nn.Module):
         self,
         args,
         n_classes: int,
+        base_dim: int,
         channel_sizes: list[int],
         group_depths: list[int],
         manifold: PoincareBall,
@@ -105,8 +106,10 @@ class PoincareResNet(nn.Module):
         self.group_depths = group_depths
         self.manifold = manifold
 
+        self.base_dim = base_dim
+
         self.conv = hnn.HConvolution2d(
-            in_channels=204//args.pooling_factor,
+            in_channels=base_dim//args.pooling_factor,
             # in_channels=3,
             out_channels=channel_sizes[0],
             kernel_size=3,
@@ -145,7 +148,7 @@ class PoincareResNet(nn.Module):
         x = self.group2(x)
         x = self.group3(x)
         x = self.avg_pool(x)
-        # x = self.avg_pool2(x)
+        if self.base_dim != 3: x = self.avg_pool2(x)
         x = x.squeeze()
         x = self.fc(x)
         return x
@@ -195,6 +198,7 @@ class PoincareResNetModel(nn.Module):
         self,
         args,
         n_classes: int,
+        base_dim: int,
         channel_sizes: list[int],
         group_depths: list[int],
         manifold_type: str,
@@ -209,6 +213,7 @@ class PoincareResNetModel(nn.Module):
             self.manifold = Euclidean()
         self.resnet = PoincareResNet(args,
                                      n_classes=n_classes,
+                                     base_dim=base_dim,
                                      channel_sizes=channel_sizes,
                                      group_depths=group_depths,
                                      manifold=self.manifold)

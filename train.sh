@@ -64,7 +64,7 @@ elif [[ $MODE == "train_hyp_pooled_regr" ]]; then
 elif [[ $MODE == "test_hyp" ]]; then
     python3 train_convnet.py --dataset_label_type median_penetro --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
 elif [[ $MODE == "train_hscnn" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins 8 --batch_size 32 --n_epochs 20 --lr 0.001 --classification --pooling_factor 4 --pooling_func min --seed $SEED
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --batch_size 32 --n_epochs 20 --lr 0.001 --classification --seed $SEED
 fi
 
 # python3 train_convnet.py --dataset_label_type dummy --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED

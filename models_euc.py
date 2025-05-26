@@ -126,9 +126,9 @@ class FCNet(nn.Module):
 
 
 class HSCNN(nn.Module): #https://github.com/cogsys-tuebingen/deephs_fruit/blob/master/classification/models/deephs_net.py
-    def __init__(self, args, num_classes=3, hidden_layers=[25, 30, 50]):
+    def __init__(self, args, num_classes=3, base_dim=204, hidden_layers=[25, 30, 50]):
         super(HSCNN, self).__init__()
-        bands = 204//args.pooling_factor
+        bands = base_dim//args.pooling_factor
         self.bands = bands
         kernel_count = 3
         assert len(hidden_layers) == 3
@@ -181,42 +181,61 @@ class HSCNN(nn.Module): #https://github.com/cogsys-tuebingen/deephs_fruit/blob/m
         return out
 
 
+def get_resnet(args, n_classes, base_dim):
+    model = resnet34()
+
+    if args.onebyoneconv:
+        model.conv1 = nn.Sequential(
+            nn.Conv2d(base_dim//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
+            nn.BatchNorm2d(args.onebyoneconvdim),
+            nn.ReLU(),
+            nn.Conv2d(args.onebyoneconvdim, 64, kernel_size=(7,7), stride=(3,3), padding=(3,3), bias=False)
+        )
+    else:
+        model.conv1 = nn.Conv2d(base_dim//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+    if not args.classification: n_classes = 1
+    if args.combined_loss: n_classes += 1
+    # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
+    model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
+    return model
+
+
+def get_base_dim(args):
+    base_dim=204 # for the WUR kiwi HSI dataset
+    if args.dataset_label_type == 'cifar': base_dim = 3 # for Cifar10 (RGB)
+    elif args.dataset_label_type == 'deephs': base_dim = 224 # for DeepHS_Fruit HSI dataset
+    return base_dim
+
+
+def get_output_dim(args, n_classes):
+    output_dim = n_classes
+    if args.combined_loss: output_dim += 1
+    elif not args.classification: output_dim = 1
+    return output_dim
+
+
 def get_model(args, n_classes=2):
+    output_dim = get_output_dim(args, n_classes)
+    base_dim = get_base_dim(args)
+
     if args.special_modes:
         if 'avg1d' in args.special_modes.split('-'):
-            model = FCNet(n_classes=2)
+            model = FCNet(n_classes=output_dim)
     elif args.hypll:
-        if not args.classification: n_classes = 1
-        if args.combined_loss: n_classes += 1
+
         model = PoincareResNetModel(args,
-                                    n_classes=n_classes,
+                                    n_classes=output_dim,
+                                    base_dim=base_dim,
                                     channel_sizes=[4, 8, 16],
                                     group_depths=[5, 4, 3],
                                     manifold_type='poincare')
     else:
         if args.resnet:
-            model = resnet34()
-            base_dim = 204
-            if args.dataset_label_type == 'cifar': base_dim = 3
-            elif args.dataset_label_type == 'deephs': base_dim = 224
-            if args.onebyoneconv:
-                model.conv1 = nn.Sequential(
-                    nn.Conv2d(base_dim//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
-                    nn.BatchNorm2d(args.onebyoneconvdim),
-                    nn.ReLU(),
-                    nn.Conv2d(args.onebyoneconvdim, 64, kernel_size=(7,7), stride=(3,3), padding=(3,3), bias=False)
-                )
-            else:
-
-                model.conv1 = nn.Conv2d(base_dim//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
-            if not args.classification: n_classes = 1
-            if args.combined_loss: n_classes += 1
-            # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
-            model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
+            model = get_resnet(args, output_dim, base_dim)
         else:
             if args.classification:
-                # model = ClassificationNet(n_classes=2)
-                model = HSCNN(args, num_classes=n_classes)
+                # model = ClassificationNet(n_classes=output_dim)
+                model = HSCNN(args, num_classes=output_dim, base_dim=base_dim)
             else:
-                model = RegressionNet()
+                model = RegressionNet(n_classes)
     return model
