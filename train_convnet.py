@@ -344,19 +344,19 @@ def train(args):
             loss = criterion(outputs, labels)
             total_loss += loss
             n_examples += len(labels)
-            if args.classification:
-                if args.combined_loss:
-                    tmp_labels = labels.flatten()
-                    clf_labels = tmp_labels[1::2].long()
-                    all_labels += clf_labels.tolist()
-                    regr_labels += tmp_labels[::2].tolist()
-                    _, predicted = torch.max(outputs[:, 1:], 1)
-                    regr_preds += outputs[:, 0].flatten().tolist()
-                    total_correct += (predicted == clf_labels).sum().item()
-                else:
-                    all_labels += labels.tolist()
-                    _, predicted = torch.max(outputs, 1)
-                    total_correct += (predicted == labels).sum().item()
+            if args.combined_loss:
+                tmp_labels = labels.flatten()
+                clf_labels = tmp_labels[1::2].long()
+                all_labels += clf_labels.tolist()
+                regr_labels += tmp_labels[::2].tolist()
+                _, predicted = torch.max(outputs[:, 1:], 1)
+                regr_preds += outputs[:, 0].flatten().tolist()
+                total_correct += (predicted == clf_labels).sum().item()
+                predicted_labels += predicted.tolist()
+            elif args.classification:
+                all_labels += labels.tolist()
+                _, predicted = torch.max(outputs, 1)
+                total_correct += (predicted == labels).sum().item()
                 predicted_labels += predicted.tolist()
             else:
                 all_labels += labels.tolist()

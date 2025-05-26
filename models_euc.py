@@ -233,7 +233,7 @@ def get_model(args, n_classes=2):
         if args.resnet:
             model = get_resnet(args, output_dim, base_dim)
         else:
-            if args.classification:
+            if args.classification or args.combined_loss:
                 # model = ClassificationNet(n_classes=output_dim)
                 model = HSCNN(args, num_classes=output_dim, base_dim=base_dim)
             else:

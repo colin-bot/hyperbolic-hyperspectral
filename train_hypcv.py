@@ -423,6 +423,8 @@ def train(args):
         print(f'Accuracy: {test_acc}')
         r2 = r2_score(regr_labels, regr_preds)
         print(f'R2: {r2}')
+        rmse = np.sqrt(((np.array(regr_labels) - np.array(regr_preds)) ** 2).mean())
+        print(f'RMSE: {rmse}')
     elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
@@ -449,6 +451,7 @@ def train(args):
         if args.combined_loss: 
             plt.scatter(regr_labels, regr_preds)
             min_val, max_val = min(regr_labels + regr_preds), max(regr_labels + regr_preds)
+            plt.title(f"R={r2}, RMSE={rmse}")
         else: 
             plt.scatter(all_labels, predicted_labels)
             min_val, max_val = min(all_labels + predicted_labels), max(all_labels + predicted_labels)
@@ -456,7 +459,7 @@ def train(args):
         plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        plt.savefig(f'imgs/hypcv.png')
+        plt.savefig(f'imgs/hypcv_{args.seed}.png')
         plt.show()
 
     # with torch.no_grad():

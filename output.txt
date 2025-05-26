@@ -85,3 +85,8 @@ classif_penetro_convnet_20eps_seed1, test acc 0.32
 classif_deephs_resnet_30eps_seed1, test acc 0.21686746987951808
 classif_deephs_resnet_30eps_seed1, test acc 0.21686746987951808
 classif_deephs_convnet_20eps_seed1, test acc 0.2891566265060241
+classif_deephs_convnet_20eps_seed333, test acc 0.20481927710843373
+classif_brix_convnet_20eps_seed333, test acc 0.2
+classif_brix_convnet_20eps_seed333, test acc 0.31
+classif_aweta_convnet_20eps_seed333, test acc 0.35
+classif_penetro_convnet_20eps_seed333, test acc 0.44

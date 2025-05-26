@@ -17,7 +17,7 @@ def load_deephs():
 
     hparams = {'fruit': Fruit.AVOCADO,
                'camera_type': CameraType.VIS,
-               'classification_type': ClassificationType.FIRMNESS,
+               'classification_type': ClassificationType.RIPENESS,
                'input_size': (64, 64),
                'data_path': '/scratch-shared/cbot/',
                'batch_size' : 4,

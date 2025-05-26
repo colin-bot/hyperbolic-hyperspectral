@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_vis
 #SBATCH --gpus=1
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -12,6 +12,8 @@
 module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
+
+PYTHONPATH=$PYTHONPATH:../deephs_fruit
 
 SEED=$1
 LABELTYPE=$2
@@ -41,7 +43,6 @@ elif [[ "$LABELTYPE" == "aweta" ]]; then
 elif [[ "$LABELTYPE" == "penetro" ]]; then
     NBINS=8
 elif [[ "$LABELTYPE" == "deephs" ]]; then
-    PYTHONPATH=$PYTHONPATH:../deephs_fruit
     NBINS=3
 fi
 
@@ -64,7 +65,7 @@ elif [[ $MODE == "train_hyp_pooled_regr" ]]; then
 elif [[ $MODE == "test_hyp" ]]; then
     python3 train_convnet.py --dataset_label_type median_penetro --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
 elif [[ $MODE == "train_hscnn" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --batch_size 32 --n_epochs 20 --lr 0.001 --classification --seed $SEED
+    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --batch_size 4 --n_epochs 20 --lr 0.0001 --combined_loss --seed $SEED --eval_only --plot_preds
 fi
 
 # python3 train_convnet.py --dataset_label_type dummy --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
