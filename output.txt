@@ -80,3 +80,7 @@ classif_median_penetro_poincare_20eps_seed1, test acc 0.48
 classif_median_penetro_poincare_20eps_seed1, test acc 0.48
 classif_median_penetro_poincare_20eps_seed1, test acc 0.51
 classif_cifar_resnet_30eps_seed1, test acc 0.5948
+classif_median_penetro_convnet_20eps_seed1, test acc 0.79
+classif_penetro_convnet_20eps_seed1, test acc 0.32
+classif_deephs_resnet_30eps_seed1, test acc 0.21686746987951808
+classif_deephs_resnet_30eps_seed1, test acc 0.21686746987951808

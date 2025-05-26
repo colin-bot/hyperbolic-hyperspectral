@@ -35,7 +35,7 @@ elif [[ "$LABELTYPE" == "penetro" ]]; then
 fi
 
 if [[ $SEED == "1" ]]; then
-    python3 hybrid_test.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --classification --seed 1 --plot_preds --hyp_weight 0.5
+    python3 hybrid_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --classification --seed 1 --plot_preds --hyp_weight 0.5
 elif [[ $SEED == "2" ]]; then
-    python3 hybrid_test.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --classification --seed 2 --pooling_func min --pooling_factor 4 --plot_preds --hyp_weight 0.5
+    python3 hybrid_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --classification --seed 2 --pooling_func min --pooling_factor 4 --plot_preds --hyp_weight 0.5
 fi

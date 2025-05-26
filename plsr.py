@@ -59,6 +59,10 @@ def train_plsr(args):
     r2 = r2_score(true_y, predicted_y)
     print(f'R2: {r2}')
 
+    rmse = np.sqrt(((np.array(true_y) - np.array(predicted_y)) ** 2).mean())
+    print(f'RMSE: {rmse}')
+
+
     print(bin_edges[1:-1])
     print(true_y[:10])
     print(predicted_y[:10])
@@ -72,8 +76,11 @@ def train_plsr(args):
 
     if args.plot_preds:
         plt.scatter(true_y, predicted_y)
+        min_val, max_val = min(true_y + predicted_y), max(true_y + predicted_y)
+        plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
+        plt.title(f"R={r2}, RMSE={rmse}")
         plt.savefig(f"./imgs/plsr_{args.dataset_label_type}.png")
         plt.show()
 
@@ -88,7 +95,7 @@ def main():
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
     parser.add_argument("--pooling_factor", type=int, default=1) # dim reduction
     parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
-
+    parser.add_argument("--combined_loss", action='store_true') #dummy
 
     args = parser.parse_args()
     print(args)

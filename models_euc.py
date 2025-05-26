@@ -125,6 +125,62 @@ class FCNet(nn.Module):
         return x     
 
 
+class HSCNN(nn.Module): #https://github.com/cogsys-tuebingen/deephs_fruit/blob/master/classification/models/deephs_net.py
+    def __init__(self, args, num_classes=3, hidden_layers=[25, 30, 50]):
+        super(HSCNN, self).__init__()
+        bands = 204//args.pooling_factor
+        self.bands = bands
+        kernel_count = 3
+        assert len(hidden_layers) == 3
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(bands, bands * kernel_count, kernel_size=7, padding=1, groups=bands),
+            nn.Conv2d(bands * kernel_count, hidden_layers[0], kernel_size=1),
+            nn.ReLU(True),
+            nn.AvgPool2d(4),
+            nn.BatchNorm2d(hidden_layers[0]),
+            nn.Conv2d(hidden_layers[0], hidden_layers[0] * kernel_count, kernel_size=3, padding=1, groups=hidden_layers[0]),
+            nn.Conv2d(hidden_layers[0] * kernel_count, hidden_layers[1], kernel_size=1),
+            nn.ReLU(True),
+            nn.AvgPool2d(4),
+            nn.BatchNorm2d(hidden_layers[1]),
+            nn.Conv2d(hidden_layers[1], hidden_layers[1] * kernel_count, kernel_size=3, padding=1, groups=hidden_layers[1]),
+            nn.Conv2d(hidden_layers[1] * kernel_count, hidden_layers[2], kernel_size=1),
+            nn.ReLU(True),
+            nn.BatchNorm2d(hidden_layers[2]),
+            nn.AdaptiveAvgPool2d((1, 1))
+        )
+
+        self.fc = nn.Sequential(
+            nn.Sigmoid(),
+            nn.BatchNorm1d(hidden_layers[2]),
+            nn.Linear(hidden_layers[2], num_classes),
+        )
+
+        self.init_params()
+
+    def init_params(self):
+        '''Init layer parameters.'''
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, std=1e-3)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def forward(self, _x, channel_wavelengths=None):
+        out = self.conv(_x)
+        out = out.view(_x.shape[0], -1)
+        out = self.fc(out)
+        return out
+
+
 def get_model(args, n_classes=2):
     if args.special_modes:
         if 'avg1d' in args.special_modes.split('-'):
@@ -135,13 +191,14 @@ def get_model(args, n_classes=2):
         model = PoincareResNetModel(args,
                                     n_classes=n_classes,
                                     channel_sizes=[4, 8, 16],
-                                    group_depths=[4, 4, 3],
+                                    group_depths=[5, 4, 3],
                                     manifold_type='poincare')
     else:
         if args.resnet:
             model = resnet34()
             base_dim = 204
             if args.dataset_label_type == 'cifar': base_dim = 3
+            elif args.dataset_label_type == 'deephs': base_dim = 224
             if args.onebyoneconv:
                 model.conv1 = nn.Sequential(
                     nn.Conv2d(base_dim//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
@@ -158,7 +215,8 @@ def get_model(args, n_classes=2):
             model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
         else:
             if args.classification:
-                model = ClassificationNet(n_classes=2)
+                # model = ClassificationNet(n_classes=2)
+                model = HSCNN(args, num_classes=n_classes)
             else:
                 model = RegressionNet()
     return model

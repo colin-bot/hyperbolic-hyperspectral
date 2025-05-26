@@ -6,9 +6,19 @@ import torch
 
 from data import KiwiDataset, Random90DegRot
 from load_data import get_dataset
-from models_euc import get_model
+# from models import get_model
 
-from load_data_deephs import load_deephs
+import os
+import sys
+
+# working_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), "../")
+# os.chdir(working_dir)
+
+# lib_path = os.path.join(working_dir)
+# sys.path.append(lib_path)
+
+from classification.utils.initialize import select_dataset, select_model, select_optimizer, load_checkpoint
+from torch.nn import DataParallel
 
 import random
 import numpy as np
@@ -18,14 +28,10 @@ import torch.optim as optim
 from sklearn.metrics import r2_score
 import argparse
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d
 
 from hypll.optim import RiemannianAdam
-from hypll.tensors import ManifoldParameter
+from scipy.ndimage import gaussian_filter1d
 
-from pytorch_grad_cam import GradCAM, HiResCAM
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
-from pytorch_grad_cam.utils.image import show_cam_on_image
 
 def transform_inputs(inputs, data_transforms, special_modes):
     if 'center_crop' in data_transforms:
@@ -80,6 +86,28 @@ class CombinedLoss(nn.Module):
         return loss
 
 
+class ModelArgs:
+    def __init__(self,
+                 classification=True,
+                 resnet=True,
+                 special_modes=None,
+                 hypll=False,
+                 pooling_factor=1,
+                 pooling_func='avg',
+                 onebyoneconv=False,
+                 onebyoneconvdim=1,
+                 combined_loss=False):
+        self.classification = classification
+        self.resnet = resnet
+        self.special_modes = special_modes
+        self.hypll = hypll
+        self.pooling_factor = pooling_factor
+        self.pooling_func = pooling_func
+        self.onebyoneconv = onebyoneconv
+        self.onebyoneconvdim = onebyoneconvdim
+        self.combined_loss=combined_loss
+
+
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -89,38 +117,31 @@ def train(args):
         random.seed(args.seed)
 
     ## DATALOADERS ##
-    if args.dataset_label_type == 'deephs':
-        trainloader, valloader, testloader = load_deephs()
-        n_classes = 3
+    dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
+    if args.combined_loss:
+        bin_edges = dataset[1]
+        dataset = dataset[0]
+        print(bin_edges)
+    print(f'dataset size {len(dataset)}')
+
+    batch_size = args.batch_size
+
+    if args.set_data_split:
+        train_set = torch.utils.data.Subset(dataset, range(train_size))
+        val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
+        test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
-        if args.combined_loss:
-            bin_edges = dataset[1]
-            dataset = dataset[0]
-            print(bin_edges)
-        print(f'dataset size {len(dataset)}')
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
 
-        batch_size = args.batch_size
+    print('train val test size', len(train_set), len(val_set), len(test_set))
 
-        if args.set_data_split:
-            train_set = torch.utils.data.Subset(dataset, range(train_size))
-            val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
-            test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
-        else:
-            # Set seed
-            generator1 = torch.Generator().manual_seed(42)
-            train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
-            # train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
-
-        print('train val test size', len(train_set), len(val_set), len(test_set))
-
-        shuffle = not args.set_data_split
-        trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
-                                                  shuffle=shuffle, num_workers=2)
-        valloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size,
-                                                  shuffle=False, num_workers=2)
-        testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
-                                                 shuffle=False, num_workers=2)
+    shuffle = not args.set_data_split
+    trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
+                                              shuffle=shuffle, num_workers=2)
+    valloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size,
+                                              shuffle=shuffle, num_workers=2)
+    testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
+                                             shuffle=shuffle, num_workers=2)
 
     ## TRAIN ## 
     if args.data_transforms: data_transforms = args.data_transforms.split('-')
@@ -128,25 +149,73 @@ def train(args):
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
 
+    # if args.classification:
+    #     pathtmp = "classif"
+    # else:
+    #     pathtmp="regress"
+    
+    # if args.hypll:
+    #     pathtmp2="poincare"
+    # elif args.resnet:
+    #     pathtmp2="resnet"
+    # elif 'avg1d' in special_modes:
+    #     pathtmp2="avg1d"
+    # else:
+    #     pathtmp2="convnet"
+    
+    # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
+    # model_path_euc = f'./models/{save_path}.pth'
+
+    # euc_args = ModelArgs(classification=args.classification, 
+    #                      resnet=True, 
+    #                      special_modes=args.special_modes,
+    #                      hypll=False,
+    #                      pooling_factor=args.pooling_factor,
+    #                      pooling_func=args.pooling_func,
+    #                      onebyoneconv=args.onebyoneconv,
+    #                      onebyoneconvdim=args.onebyoneconvdim,
+    #                      combined_loss=False)
+    # hyp_args = ModelArgs(classification=args.classification, 
+                        #  resnet=False, 
+                        #  special_modes=args.special_modes,
+                        #  hypll=True,
+                        #  pooling_factor=args.pooling_factor,
+                        #  pooling_func=args.pooling_func,
+                        #  onebyoneconv=args.onebyoneconv,
+                        #  onebyoneconvdim=args.onebyoneconvdim)
+
+    # model_path_euc = f'{working_dir}/classification/good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{args.seed}.pth'
+    # net_euc = get_model(euc_args, n_classes=n_classes).to(device)
+    # net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
+    # print('loaded from', model_path_euc)
+
+    # model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{args.seed}.pth'
+    # net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
+    # net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
+    # print('loaded from', model_path_hyp)
+
+    img_dim = [204//args.pooling_factor, 180, 180]
+
     if args.combined_loss:
-        pathtmp = "combined"
+        num_classes = 1 + args.n_bins
     elif args.classification:
-        pathtmp = "classif"
+        num_classes = args.n_bins
     else:
-        pathtmp="regress"
-    
-    if args.hypll:
-        pathtmp2="poincare"
-    elif args.resnet:
-        pathtmp2="resnet"
-    elif 'avg1d' in special_modes:
-        pathtmp2="avg1d"
-    else:
-        pathtmp2="convnet"
-    
-    save_path = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
-    model_path = f'./models/{save_path}.pth'
-    
+        num_classes = 1
+
+    net = select_model(img_dim, num_classes, args).to(device)
+    device_tmp = [device + ':0']
+    net = DataParallel(net, device_ids=device_tmp)
+    # model_path_hyp = f'{working_dir}/classification/good_models/best_L-ResNet18-brix.pth'
+    # checkpoint = torch.load(model_path_hyp, map_location=device)
+    # net_hyp.module.load_state_dict(checkpoint['model'], strict=True)
+
+    n_params = 0
+    for name, param in net.named_parameters():
+        n_params += param.numel()
+    print(f'{n_params} total parameters')
+
+    ## EVAL ##
     if args.combined_loss:
         criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
     elif args.classification:
@@ -154,26 +223,22 @@ def train(args):
     else:
         criterion = nn.MSELoss()
 
+    total_loss = 0.
+    total_correct = 0
+    n_examples = 0
+    all_labels = []
+    predicted_labels = []
+
+    hyp_weight = args.hyp_weight
+
+    model_path = f'models/hypcv_{args.seed}.pt'
+
     if not args.eval_only:
-        net = get_model(args, n_classes=n_classes).to(device)
+        # net = get_model(args, n_classes=n_classes).to(device)
     
         # print(net)
 
-        n_params = 0
-        for name, p in net.named_parameters():
-            if isinstance(p, ManifoldParameter):
-                # print(name, p.tensor.abs().mean())
-                n_params += p.tensor.numel()
-            else:
-                # print(name, p.abs().mean())
-                n_params += p.numel()
-        print(f'{n_params} total parameters')
-
-        # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
-        if args.hypll:
-            optimizer = RiemannianAdam(net.parameters(), lr=args.lr)
-        else:
-            optimizer = optim.Adam(net.parameters(), lr=args.lr)
+        optimizer, lr_scheduler = select_optimizer(net, args)
 
         print("Starting Training!")
 
@@ -207,8 +272,6 @@ def train(args):
 
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                # print(inputs.shape, labels.shape)
-
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
@@ -229,11 +292,6 @@ def train(args):
 
                 loss.backward()
 
-                # for name, param in net.named_parameters():
-                    # if isinstance(p, ManifoldParameter):
-                        # print(name, param.grad.tensor.abs().mean())
-                    # else:
-                        # print(name, param.grad.abs().mean())
 
                 # break
 
@@ -282,10 +340,10 @@ def train(args):
 
                         predicted_labels += predicted.tolist()
 
-                        # if first_minibatch:
-                        #     print(labels, predicted)
-                        #     print(outputs)
-                        #     first_minibatch = False
+                        if first_minibatch:
+                            print(labels, predicted)
+                            print(outputs)
+                            first_minibatch = False
             
                 val_acc = correct / len(true_labels)
                 if args.classification and not args.combined_loss:
@@ -315,14 +373,8 @@ def train(args):
                             break
                 
 
-        print(f'{nan_ctr} NaNs')
-        print('Finished Training')
-
-    net = get_model(args, n_classes=n_classes).to(device)
-    net.load_state_dict(torch.load(model_path, weights_only=False))
-    print('loaded from', model_path)
-
-    ## EVAL ##
+    # net_euc.eval()
+    net.eval()
     total_loss = 0.
     total_correct = 0
     n_examples = 0
@@ -330,7 +382,9 @@ def train(args):
     predicted_labels = []
     regr_labels = []
     regr_preds = []
-    net.eval()
+
+    save_path = f'lorentz_{args.dataset_label_type}_seed_{args.seed}'
+
 
     with torch.no_grad():
         for data in testloader:
@@ -344,31 +398,31 @@ def train(args):
             loss = criterion(outputs, labels)
             total_loss += loss
             n_examples += len(labels)
-            if args.classification:
-                if args.combined_loss:
-                    tmp_labels = labels.flatten()
-                    clf_labels = tmp_labels[1::2].long()
-                    all_labels += clf_labels.tolist()
-                    regr_labels += tmp_labels[::2].tolist()
-                    _, predicted = torch.max(outputs[:, 1:], 1)
-                    regr_preds += outputs[:, 0].flatten().tolist()
-                    total_correct += (predicted == clf_labels).sum().item()
-                else:
-                    all_labels += labels.tolist()
-                    _, predicted = torch.max(outputs, 1)
-                    total_correct += (predicted == labels).sum().item()
+            if args.combined_loss:
+                tmp_labels = labels.flatten()
+                clf_labels = tmp_labels[1::2].long()
+                all_labels += clf_labels.tolist()
+                regr_labels += tmp_labels[::2].tolist()
+                _, predicted = torch.max(outputs[:, 1:], 1)
+                regr_preds += outputs[:, 0].flatten().tolist()
+                total_correct += (predicted == clf_labels).sum().item()
+                predicted_labels += predicted.tolist()
+            elif args.classification:
+                all_labels += labels.tolist()
+                _, predicted = torch.max(outputs, 1)
+                total_correct += (predicted == labels).sum().item()
                 predicted_labels += predicted.tolist()
             else:
                 all_labels += labels.tolist()
                 predicted_labels += outputs.tolist()
 
     if args.combined_loss:
+        print(regr_preds[:50])
+        print(regr_labels[:50])
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
         r2 = r2_score(regr_labels, regr_preds)
         print(f'R2: {r2}')
-        rmse = np.sqrt(((np.array(regr_labels) - np.array(regr_preds)) ** 2).mean())
-        print(f'RMSE: {rmse}')
     elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
@@ -395,7 +449,6 @@ def train(args):
         if args.combined_loss: 
             plt.scatter(regr_labels, regr_preds)
             min_val, max_val = min(regr_labels + regr_preds), max(regr_labels + regr_preds)
-            plt.title(f"R={r2}, RMSE={rmse}")
         else: 
             plt.scatter(all_labels, predicted_labels)
             min_val, max_val = min(all_labels + predicted_labels), max(all_labels + predicted_labels)
@@ -403,87 +456,73 @@ def train(args):
         plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        plt.savefig(f"./imgs/{save_path}.png")
+        plt.savefig(f'imgs/hypcv.png')
         plt.show()
 
-    if args.gradcam:
-        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=len(test_set),
-                                                    shuffle=shuffle, num_workers=2)        
+    # with torch.no_grad():
+    #     for data in testloader:
+    #         inputs, labels = data[0].to(device), data[1].to(device)
+    #         inputs = transform_inputs(inputs, data_transforms, special_modes)
 
-        target_layers = [net.layer4[-1]]
-        example = next(iter(newtestloader))
-        # input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
-        input_img, target = example[0].to(device), example[1]
-        print(input_img.size())
+    #         # calculate outputs by running images through the network
+    #         # logits_euc = net_euc(inputs)
+    #         logits_hyp = net(inputs)
 
-        target_class = args.gradcam_target_class
+    #         # print(logits_euc)
+    #         # print(logits_hyp)
 
-        if target_class == -1:
-            targets = None
-        else:
-            targets = [ClassifierOutputReST(target_class)] * len(test_set)
-        with GradCAM(model=net, target_layers=target_layers) as cam:
-            grayscale_cam = cam(input_tensor=input_img, targets=targets)
-            print(grayscale_cam.shape)
-            # In this example grayscale_cam has only one image in the batch:
-            grayscale_cam_avg = np.mean(grayscale_cam, axis=0)
-            plt.imshow(grayscale_cam_avg)
-            plt.xticks([])
-            plt.yticks([])
-            plt.xlabel("")
-            plt.ylabel("")
-            plt.title("GradCAM avg")
-            targetclasstext = f"class_{target_class}" if target_class != -1 else "avg"
-            plt.savefig(f"./imgs/gradcam_{targetclasstext}_{save_path}.png")
+    #         # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
+    #         # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
 
-            # for i in range(3):
-            #     grayscale_cam_img = grayscale_cam[i, :]
-            #     # You can also get the model outputs without having to redo inference
-            #     # model_outputs = cam.outputs
-            #     plt.imshow(grayscale_cam_img)
-            #     plt.xticks([])
-            #     plt.yticks([])
-            #     plt.xlabel("")
-            #     plt.ylabel("")
-            #     plt.title(f"GradCAM {i}")
-            #     plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
-            
+    #         # outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
+    #         outputs = logits_hyp
 
-        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=1,
-                                                    shuffle=shuffle, num_workers=2)
-        example = next(iter(newtestloader))
-        input_img, target = gradcam_helper(example[0]).to(device), int(example[1])
-        targets = [ClassifierOutputReST(target)] * input_img.size()[0]
+    #         # print(outputs)
 
-        print(input_img[0][0])
-        print(input_img[0][1])
-        print(input_img[1][1])
-        print(input_img[1][0])
+    #         if args.classification: labels = labels.long()
+    #         loss = criterion(outputs, labels)
+    #         total_loss += loss
+    #         n_examples += len(labels)
+    #         all_labels += labels.tolist()
+    #         if args.classification:
+    #             # outputs = F.softmax(outputs, dim=1)
+    #             _, predicted = torch.max(outputs, dim=1)
+    #             total_correct += (predicted == labels).sum().item()
+    #             predicted_labels += predicted.tolist()
+    #         else:
+    #             predicted_labels += outputs.tolist()
 
-        with GradCAM(model=net, target_layers=target_layers) as cam:
-            grayscale_cam = cam(input_tensor=input_img, targets=targets)
-            gradcam_per_channel = np.mean(grayscale_cam, axis=(1,2))
-            print(gradcam_per_channel)    
-            plt.clf()
-            plt.plot(range(len(gradcam_per_channel)), gradcam_per_channel)
-            plt.savefig(f"./imgs/gradcam_channels_{save_path}.png")
 
-def gradcam_helper(input_img):
-    input_img = input_img.squeeze()
-    n_channels = input_img.size()[0]
-    input_img = torch.stack(tuple([input_img] * n_channels))
-    print(input_img.size())
-    for i in range(n_channels):
-        for j in range(n_channels):
-            if j == i: continue
-            input_img[i][j] = 0.
-        #TEST:
-        # input_img[i][0] = input_img[i][i]
-        # if i != 0: input_img[i][i] = 0.
-    return input_img
+    # if args.classification:
+    #     test_acc = total_correct / n_examples
+    #     print(f'Accuracy: {test_acc}')
+    #     file = open("output.txt", "a")
+    #     file.write(f"{save_path}, test acc {test_acc}\n")
+    #     file.close()
+    # else:
+    #     print(f'Average MSE: {total_loss / n_examples}')
+    #     r2 = r2_score(all_labels, predicted_labels)
+    #     print(f'R2: {r2}')
+
+    # if args.plot_preds:
+    #     print(all_labels[:50])
+    #     print(predicted_labels[:50])
+    #     if args.classification:
+    #         for i in np.unique(all_labels):
+    #             print(i, predicted_labels.count(i), all_labels.count(i))
+    #         label_difference = np.abs(np.array(predicted_labels)-np.array(all_labels))
+    #         print(label_difference[:50])
+    #         print(np.mean(label_difference))
+    #     plt.scatter(all_labels, predicted_labels)
+    #     plt.xlabel(f"true {args.dataset_label_type}")
+    #     plt.ylabel(f"predicted {args.dataset_label_type}")
+    #     plt.savefig(f"classification/output/imgs/{save_path}.png")
+    #     plt.show()
+
 
 def main():
     parser=argparse.ArgumentParser(description="Argparser for baseline training script") 
+
     parser.add_argument("--dataset_label_type", type=str, default="brix")
     parser.add_argument("--n_epochs", type=int, default=2)
     parser.add_argument("--eval_only", action='store_true')
@@ -502,10 +541,50 @@ def main():
     parser.add_argument("--onebyoneconv", action='store_true')
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
     parser.add_argument("--hypll", action='store_true')
-    parser.add_argument("--gradcam", action='store_true')
-    parser.add_argument("--gradcam_target_class", type=int, default=-1)
-    parser.add_argument("--combined_loss", action='store_true') #regression with classification as regularizer
+    parser.add_argument("--hyp_weight", type=float, default=0.5)
+    parser.add_argument("--combined_loss", action='store_true')
     parser.add_argument("--blur_labels", action='store_true')
+
+
+    # Output settings
+    parser.add_argument('--exp_name', default="test", type=str,
+                        help="Name of the experiment.")
+    parser.add_argument('--output_dir', default=None, type=str,
+                        help="Path for output files (relative to working directory).")
+
+    # Model selection
+    parser.add_argument('--num_layers', default=18, type=int, choices=[10, 18, 34, 50],
+                        help="Number of layers in ResNet.")
+    parser.add_argument('--embedding_dim', default=512, type=int,
+                        help="Dimensionality of classification embedding space (could be expanded by ResNet)")
+    parser.add_argument('--encoder_manifold', default='lorentz', type=str, choices=["euclidean", "lorentz"],
+                        help="Select conv model encoder manifold.")
+    parser.add_argument('--decoder_manifold', default='lorentz', type=str, choices=["euclidean", "lorentz", "poincare"],
+                        help="Select conv model decoder manifold.")
+
+    # Hyperbolic geometry settings
+    parser.add_argument('--learn_k', action='store_true',
+                        help="Set a learnable curvature of hyperbolic geometry.")
+    parser.add_argument('--encoder_k', default=1.0, type=float,
+                        help="Initial curvature of hyperbolic geometry in backbone (geoopt.K=-1/K).")
+    parser.add_argument('--decoder_k', default=1.0, type=float,
+                        help="Initial curvature of hyperbolic geometry in decoder (geoopt.K=-1/K).")
+    parser.add_argument('--clip_features', default=1.0, type=float,
+                        help="Clipping parameter for hybrid HNNs proposed by Guo et al. (2022)")
+
+
+    parser.add_argument('--weight_decay', default=5e-4, type=float,
+                        help="Weight decay (L2 regularization)")
+    parser.add_argument('--optimizer', default="RiemannianSGD", type=str,
+                        choices=["RiemannianAdam", "RiemannianSGD", "Adam", "SGD"],
+                        help="Optimizer for training.")
+    parser.add_argument('--use_lr_scheduler', action='store_true',
+                        help="If learning rate should be reduced after step epochs using a LR scheduler.")
+    parser.add_argument('--lr_scheduler_milestones', default=[60, 120, 160], type=int, nargs="+",
+                        help="Milestones of LR scheduler.")
+    parser.add_argument('--lr_scheduler_gamma', default=0.2, type=float,
+                        help="Gamma parameter of LR scheduler.")
+
 
     args = parser.parse_args()
     print(args)
