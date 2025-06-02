@@ -193,8 +193,7 @@ def get_resnet(args, n_classes, base_dim):
         )
     else:
         model.conv1 = nn.Conv2d(base_dim//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
-    if not args.classification: n_classes = 1
-    if args.combined_loss: n_classes += 1
+
     # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
     model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
     return model

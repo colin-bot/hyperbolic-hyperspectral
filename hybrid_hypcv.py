@@ -50,7 +50,9 @@ class ModelArgs:
                  pooling_func='avg',
                  onebyoneconv=False,
                  onebyoneconvdim=1,
-                 combined_loss=False):
+                 combined_loss=False,
+                 n_bins=4,
+                 dataset_label_type='brix'):
         self.classification = classification
         self.resnet = resnet
         self.special_modes = special_modes
@@ -60,6 +62,8 @@ class ModelArgs:
         self.onebyoneconv = onebyoneconv
         self.onebyoneconvdim = onebyoneconvdim
         self.combined_loss=combined_loss
+        self.n_bins = n_bins
+        self.dataset_label_type = dataset_label_type
 
 
 def train(args):
@@ -72,6 +76,10 @@ def train(args):
 
     ## DATALOADERS ##
     dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
+    if args.combined_loss:
+        bin_edges = dataset[1]
+        dataset = dataset[0]
+        print(bin_edges)
     print(f'dataset size {len(dataset)}')
 
     batch_size = args.batch_size
@@ -81,7 +89,8 @@ def train(args):
         val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
         test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        generator1 = torch.Generator().manual_seed(42)
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
 
     print('train val test size', len(train_set), len(val_set), len(test_set))
 
@@ -116,15 +125,17 @@ def train(args):
     # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
     # model_path_euc = f'./models/{save_path}.pth'
 
-    euc_args = ModelArgs(classification=args.classification, 
+    euc_args = ModelArgs(classification=False,
+                         n_bins=args.n_bins,
+                         dataset_label_type=args.dataset_label_type,
                          resnet=True, 
-                         special_modes=args.special_modes,
+                         special_modes=None,
                          hypll=False,
-                         pooling_factor=args.pooling_factor,
-                         pooling_func=args.pooling_func,
-                         onebyoneconv=args.onebyoneconv,
-                         onebyoneconvdim=args.onebyoneconvdim,
-                         combined_loss=False)
+                         pooling_factor=4,
+                         pooling_func='min',
+                         onebyoneconv=False,
+                         onebyoneconvdim=0,
+                         combined_loss=True)
     # hyp_args = ModelArgs(classification=args.classification, 
                         #  resnet=False, 
                         #  special_modes=args.special_modes,
@@ -134,29 +145,28 @@ def train(args):
                         #  onebyoneconv=args.onebyoneconv,
                         #  onebyoneconvdim=args.onebyoneconvdim)
 
-    model_path_euc = f'good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{args.seed}.pth'
+    model_path_euc = f'models/combined_{args.dataset_label_type}{args.n_bins}_resnet_30eps_seed{args.seed}.pth'
     net_euc = get_model(euc_args, n_classes=n_classes).to(device)
     net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
     print('loaded from', model_path_euc)
 
-    # model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{args.seed}.pth'
-    # net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
-    # net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
-    # print('loaded from', model_path_hyp)
-
     img_dim = [204//args.pooling_factor, 180, 180]
     num_classes = args.n_bins
+    if args.combined_loss: num_classes += 1
     net_hyp = select_model(img_dim, num_classes, args).to(device)
     device_tmp = [device + ':0']
     net_hyp = DataParallel(net_hyp, device_ids=device_tmp)
-    model_path_hyp = f'good_models/best_L-ResNet18-brix.pth'
+    model_path_hyp = f'models/hypcv_Eeuclidean_Dlorentz_{args.dataset_label_type}{args.n_bins}_{args.seed}.pt'
     checkpoint = torch.load(model_path_hyp, map_location=device)
-    net_hyp.module.load_state_dict(checkpoint['model'], strict=True)
+    # net_hyp.module.load_state_dict(checkpoint['model'], strict=True)
+    net_hyp.load_state_dict(checkpoint)
 
 
     ## EVAL ##
     if args.classification:
         criterion = nn.CrossEntropyLoss()
+    elif args.combined_loss:
+        criterion = None
     else:
         criterion = nn.MSELoss()
 
@@ -186,26 +196,37 @@ def train(args):
             # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
             # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
 
-            outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
 
             # print(outputs)
-
-            if args.classification: labels = labels.long()
-            loss = criterion(outputs, labels)
-            total_loss += loss
-            n_examples += len(labels)
-            all_labels += labels.tolist()
-            if args.classification:
-                # outputs = F.softmax(outputs, dim=1)
-                _, predicted = torch.max(outputs, dim=1)
-                total_correct += (predicted == labels).sum().item()
-                predicted_labels += predicted.tolist()
+            if args.combined_loss:
+                regr_euc = logits_euc[:,0]
+                regr_hyp = logits_hyp[:,0]
+                regr_preds = 2 * ((1-hyp_weight) * regr_euc + hyp_weight * regr_hyp)
+                predicted_labels += regr_preds.flatten().tolist()
+                all_labels += labels.flatten()[::2].tolist()
             else:
-                predicted_labels += outputs.tolist()
+                outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
+                if args.classification: labels = labels.long()
+                loss = criterion(outputs, labels)
+                total_loss += loss
+                n_examples += len(labels)
+                all_labels += labels.tolist()
+                if args.classification:
+                    # outputs = F.softmax(outputs, dim=1)
+                    _, predicted = torch.max(outputs, dim=1)
+                    total_correct += (predicted == labels).sum().item()
+                    predicted_labels += predicted.tolist()
+                else:
+                    predicted_labels += outputs.tolist()
 
     save_path = f'hybrid_{args.dataset_label_type}_seed_{args.seed}'
 
-    if args.classification:
+    if args.combined_loss:
+        r2 = r2_score(all_labels, predicted_labels)
+        print(f'R2: {r2}')
+        rmse = np.sqrt(((np.array(all_labels) - np.array(predicted_labels)) ** 2).mean())
+        print(f'RMSE: {rmse}')
+    elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
         file = open("output.txt", "a")
@@ -228,7 +249,11 @@ def train(args):
         plt.scatter(all_labels, predicted_labels)
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        plt.savefig(f"classification/output/imgs/{save_path}.png")
+        if args.combined_loss: 
+            min_val, max_val = min(all_labels + predicted_labels), max(all_labels + predicted_labels)
+            plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
+            plt.title(f"R={r2}, RMSE={rmse}")
+        plt.savefig(f"imgs/{save_path}.png")
         plt.show()
 
 

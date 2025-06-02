@@ -67,7 +67,8 @@ def train(args):
         val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
         test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        generator1 = torch.Generator().manual_seed(42)
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
 
     print('train val test size', len(train_set), len(val_set), len(test_set))
 

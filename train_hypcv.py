@@ -47,9 +47,9 @@ def blur_labels(labels, num_classes, device):
     return labels
 
 
-class CombinedLoss(nn.Module):
+class CombinedLossHyp(nn.Module):
     def __init__(self, bin_edges, weights=(0.01,1.,0.1), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
-        super(CombinedLoss, self).__init__()
+        super(CombinedLossHyp, self).__init__()
         self.bin_edges = bin_edges
         self.weights = weights
         self.mse = nn.MSELoss()
@@ -60,7 +60,8 @@ class CombinedLoss(nn.Module):
         self.device = device
     
     def forward(self, predictions, targets):
-        regr_preds = predictions[:,0]            
+        regr_preds = predictions[:,0]     
+        regr_preds = torch.exp(regr_preds)       
         clf_preds = predictions[:, 1:]
         targets = targets.flatten()
         clf_targets = targets[1::2].long()
@@ -131,7 +132,8 @@ def train(args):
         val_set = torch.utils.data.Subset(dataset, range(train_size, train_size+val_size))
         test_set = torch.utils.data.Subset(dataset, range(train_size+val_size, train_size+val_size+test_size))
     else:
-        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        generator1 = torch.Generator().manual_seed(42)
+        train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
 
     print('train val test size', len(train_set), len(val_set), len(test_set))
 
@@ -148,51 +150,6 @@ def train(args):
     else: data_transforms = []
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
-
-    # if args.classification:
-    #     pathtmp = "classif"
-    # else:
-    #     pathtmp="regress"
-    
-    # if args.hypll:
-    #     pathtmp2="poincare"
-    # elif args.resnet:
-    #     pathtmp2="resnet"
-    # elif 'avg1d' in special_modes:
-    #     pathtmp2="avg1d"
-    # else:
-    #     pathtmp2="convnet"
-    
-    # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
-    # model_path_euc = f'./models/{save_path}.pth'
-
-    # euc_args = ModelArgs(classification=args.classification, 
-    #                      resnet=True, 
-    #                      special_modes=args.special_modes,
-    #                      hypll=False,
-    #                      pooling_factor=args.pooling_factor,
-    #                      pooling_func=args.pooling_func,
-    #                      onebyoneconv=args.onebyoneconv,
-    #                      onebyoneconvdim=args.onebyoneconvdim,
-    #                      combined_loss=False)
-    # hyp_args = ModelArgs(classification=args.classification, 
-                        #  resnet=False, 
-                        #  special_modes=args.special_modes,
-                        #  hypll=True,
-                        #  pooling_factor=args.pooling_factor,
-                        #  pooling_func=args.pooling_func,
-                        #  onebyoneconv=args.onebyoneconv,
-                        #  onebyoneconvdim=args.onebyoneconvdim)
-
-    # model_path_euc = f'{working_dir}/classification/good_models/classif_{args.dataset_label_type}_resnet_30eps_seed{args.seed}.pth'
-    # net_euc = get_model(euc_args, n_classes=n_classes).to(device)
-    # net_euc.load_state_dict(torch.load(model_path_euc, weights_only=False))
-    # print('loaded from', model_path_euc)
-
-    # model_path_hyp = f'./good_models/classif_{args.dataset_label_type}_poincare_5eps_seed{args.seed}.pth'
-    # net_hyp = get_model(hyp_args, n_classes=n_classes).to(device)
-    # net_hyp.load_state_dict(torch.load(model_path_hyp, weights_only=False))
-    # print('loaded from', model_path_hyp)
 
     img_dim = [204//args.pooling_factor, 180, 180]
 
@@ -217,7 +174,7 @@ def train(args):
 
     ## EVAL ##
     if args.combined_loss:
-        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
+        criterion = CombinedLossHyp(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
     elif args.classification:
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     else:
@@ -231,7 +188,8 @@ def train(args):
 
     hyp_weight = args.hyp_weight
 
-    model_path = f'models/hypcv_{args.seed}.pt'
+    save_path = f'hypcv_E{args.encoder_manifold}_D{args.decoder_manifold}_{args.dataset_label_type}{args.n_bins}_{args.seed}'
+    model_path = f'models/{save_path}.pt'
 
     if not args.eval_only:
         # net = get_model(args, n_classes=n_classes).to(device)
@@ -256,6 +214,12 @@ def train(args):
             # TRAIN
             net.train()
             running_loss = 0.0
+
+            if (epoch + 1) == args.lr_scheduler_milestones[0]:  # skip the first drop for some Parameters
+                optimizer.param_groups[1]['lr'] *= (1 / args.lr_scheduler_gamma) # Manifold params
+                print("Skipped lr drop for manifold parameters")
+            lr_scheduler.step()
+
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
                 inputs, labels = data[0], data[1]
@@ -383,9 +347,6 @@ def train(args):
     regr_labels = []
     regr_preds = []
 
-    save_path = f'lorentz_{args.dataset_label_type}_seed_{args.seed}'
-
-
     with torch.no_grad():
         for data in testloader:
             inputs, labels = data[0].to(device), data[1].to(device)
@@ -404,7 +365,7 @@ def train(args):
                 all_labels += clf_labels.tolist()
                 regr_labels += tmp_labels[::2].tolist()
                 _, predicted = torch.max(outputs[:, 1:], 1)
-                regr_preds += outputs[:, 0].flatten().tolist()
+                regr_preds += torch.exp(outputs[:, 0]).flatten().tolist()
                 total_correct += (predicted == clf_labels).sum().item()
                 predicted_labels += predicted.tolist()
             elif args.classification:
@@ -459,68 +420,8 @@ def train(args):
         plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        plt.savefig(f'imgs/hypcv_{args.seed}.png')
+        plt.savefig(f'imgs/{save_path}.png')
         plt.show()
-
-    # with torch.no_grad():
-    #     for data in testloader:
-    #         inputs, labels = data[0].to(device), data[1].to(device)
-    #         inputs = transform_inputs(inputs, data_transforms, special_modes)
-
-    #         # calculate outputs by running images through the network
-    #         # logits_euc = net_euc(inputs)
-    #         logits_hyp = net(inputs)
-
-    #         # print(logits_euc)
-    #         # print(logits_hyp)
-
-    #         # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
-    #         # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
-
-    #         # outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
-    #         outputs = logits_hyp
-
-    #         # print(outputs)
-
-    #         if args.classification: labels = labels.long()
-    #         loss = criterion(outputs, labels)
-    #         total_loss += loss
-    #         n_examples += len(labels)
-    #         all_labels += labels.tolist()
-    #         if args.classification:
-    #             # outputs = F.softmax(outputs, dim=1)
-    #             _, predicted = torch.max(outputs, dim=1)
-    #             total_correct += (predicted == labels).sum().item()
-    #             predicted_labels += predicted.tolist()
-    #         else:
-    #             predicted_labels += outputs.tolist()
-
-
-    # if args.classification:
-    #     test_acc = total_correct / n_examples
-    #     print(f'Accuracy: {test_acc}')
-    #     file = open("output.txt", "a")
-    #     file.write(f"{save_path}, test acc {test_acc}\n")
-    #     file.close()
-    # else:
-    #     print(f'Average MSE: {total_loss / n_examples}')
-    #     r2 = r2_score(all_labels, predicted_labels)
-    #     print(f'R2: {r2}')
-
-    # if args.plot_preds:
-    #     print(all_labels[:50])
-    #     print(predicted_labels[:50])
-    #     if args.classification:
-    #         for i in np.unique(all_labels):
-    #             print(i, predicted_labels.count(i), all_labels.count(i))
-    #         label_difference = np.abs(np.array(predicted_labels)-np.array(all_labels))
-    #         print(label_difference[:50])
-    #         print(np.mean(label_difference))
-    #     plt.scatter(all_labels, predicted_labels)
-    #     plt.xlabel(f"true {args.dataset_label_type}")
-    #     plt.ylabel(f"predicted {args.dataset_label_type}")
-    #     plt.savefig(f"classification/output/imgs/{save_path}.png")
-    #     plt.show()
 
 
 def main():
@@ -583,7 +484,7 @@ def main():
                         help="Optimizer for training.")
     parser.add_argument('--use_lr_scheduler', action='store_true',
                         help="If learning rate should be reduced after step epochs using a LR scheduler.")
-    parser.add_argument('--lr_scheduler_milestones', default=[60, 120, 160], type=int, nargs="+",
+    parser.add_argument('--lr_scheduler_milestones', default=[3, 6, 8], type=int, nargs="+",
                         help="Milestones of LR scheduler.")
     parser.add_argument('--lr_scheduler_gamma', default=0.2, type=float,
                         help="Gamma parameter of LR scheduler.")

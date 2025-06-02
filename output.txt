@@ -90,3 +90,6 @@ classif_brix_convnet_20eps_seed333, test acc 0.2
 classif_brix_convnet_20eps_seed333, test acc 0.31
 classif_aweta_convnet_20eps_seed333, test acc 0.35
 classif_penetro_convnet_20eps_seed333, test acc 0.44
+lorentz_aweta_seed_1, test acc 0.16
+lorentz_aweta_seed_1, test acc 0.17
+lorentz_aweta_seed_1, test acc 0.16

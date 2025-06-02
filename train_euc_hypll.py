@@ -144,7 +144,7 @@ def train(args):
     else:
         pathtmp2="convnet"
     
-    save_path = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
+    save_path = f"{pathtmp}_{args.dataset_label_type}{args.n_bins}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:

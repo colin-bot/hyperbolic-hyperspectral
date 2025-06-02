@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_vis
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -46,26 +46,28 @@ elif [[ "$LABELTYPE" == "deephs" ]]; then
     NBINS=3
 fi
 
+set CUDA_LAUNCH_BLOCKING = 1
+
 if [[ $MODE == "train_euc" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED
 elif [[ $MODE == "train_euc_pooled" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --pooling_factor 4 --pooling_func min
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --pooling_factor 4 --pooling_func min
 elif [[ $MODE == "train_euc_pooled_regr" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
 elif [[ $MODE == "eval_euc" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only
 elif [[ $MODE == "eval_euc_pooled" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --pooling_factor 4 --pooling_func min
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --pooling_factor 4 --pooling_func min
 elif [[ $MODE == "combined_loss" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --combined_loss --blur_labels --eval_only --plot_preds
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins 4 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --combined_loss --plot_preds --pooling_factor 4 --pooling_func min
 elif [[ $MODE == "gradcam" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --gradcam
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --gradcam
 elif [[ $MODE == "train_hyp_pooled_regr" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --hypll --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --hypll --seed $SEED --pooling_factor 4 --pooling_func min --plot_preds
 elif [[ $MODE == "test_hyp" ]]; then
-    python3 train_convnet.py --dataset_label_type median_penetro --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
+    python3 train_euc_hypll.py --dataset_label_type median_penetro --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
 elif [[ $MODE == "train_hscnn" ]]; then
-    python3 train_convnet.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --batch_size 4 --n_epochs 20 --lr 0.0001 --combined_loss --seed $SEED --eval_only --plot_preds
+    python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --batch_size 4 --n_epochs 20 --lr 0.0001 --combined_loss --seed $SEED --eval_only --plot_preds
 fi
 
-# python3 train_convnet.py --dataset_label_type dummy --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
+# python3 train_euc_hypll.py --dataset_label_type dummy --n_bins 2 --batch_size 32 --n_epochs 20 --lr 0.001 --hypll --classification --pooling_factor 4 --pooling_func min --seed $SEED
