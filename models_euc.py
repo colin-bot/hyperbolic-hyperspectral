@@ -126,9 +126,9 @@ class FCNet(nn.Module):
 
 
 class HSCNN(nn.Module): #https://github.com/cogsys-tuebingen/deephs_fruit/blob/master/classification/models/deephs_net.py
-    def __init__(self, args, num_classes=3, base_dim=204, hidden_layers=[25, 30, 50]):
+    def __init__(self, num_classes=3, base_dim=204, hidden_layers=[25, 30, 50]):
         super(HSCNN, self).__init__()
-        bands = base_dim//args.pooling_factor
+        bands = base_dim
         self.bands = bands
         kernel_count = 3
         assert len(hidden_layers) == 3
@@ -186,13 +186,13 @@ def get_resnet(args, n_classes, base_dim):
 
     if args.onebyoneconv:
         model.conv1 = nn.Sequential(
-            nn.Conv2d(base_dim//args.pooling_factor, args.onebyoneconvdim, kernel_size=1),
+            nn.Conv2d(base_dim, args.onebyoneconvdim, kernel_size=1),
             nn.BatchNorm2d(args.onebyoneconvdim),
             nn.ReLU(),
             nn.Conv2d(args.onebyoneconvdim, 64, kernel_size=(7,7), stride=(3,3), padding=(3,3), bias=False)
         )
     else:
-        model.conv1 = nn.Conv2d(base_dim//args.pooling_factor, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
+        model.conv1 = nn.Conv2d(base_dim, 64, kernel_size=(7, 7), stride=(3,3), padding=(3,3), bias=False)
 
     # model.fc = nn.Linear(in_features=2048, out_features=n_classes, bias=True)
     model.fc = nn.Linear(in_features=512, out_features=n_classes, bias=True)
@@ -203,6 +203,8 @@ def get_base_dim(args):
     base_dim=204 # for the WUR kiwi HSI dataset
     if args.dataset_label_type == 'cifar': base_dim = 3 # for Cifar10 (RGB)
     elif args.dataset_label_type == 'deephs': base_dim = 224 # for DeepHS_Fruit HSI dataset
+    base_dim = base_dim//args.pooling_factor
+    if args.pca_components > 0: base_dim = args.pca_components # pca overwrites spectral pooling dim
     return base_dim
 
 
@@ -222,8 +224,7 @@ def get_model(args, n_classes=2):
             model = FCNet(n_classes=output_dim)
     elif args.hypll:
 
-        model = PoincareResNetModel(args,
-                                    n_classes=output_dim,
+        model = PoincareResNetModel(n_classes=output_dim,
                                     base_dim=base_dim,
                                     channel_sizes=[4, 8, 16],
                                     group_depths=[5, 4, 3],
@@ -234,7 +235,7 @@ def get_model(args, n_classes=2):
         else:
             if args.classification or args.combined_loss:
                 # model = ClassificationNet(n_classes=output_dim)
-                model = HSCNN(args, num_classes=output_dim, base_dim=base_dim)
+                model = HSCNN(num_classes=output_dim, base_dim=base_dim)
             else:
                 model = RegressionNet(n_classes)
     return model

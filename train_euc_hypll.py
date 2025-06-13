@@ -83,7 +83,7 @@ class CombinedLoss(nn.Module):
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    if args.seed != 0:
+    if args.seed != -1:
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
         random.seed(args.seed)
@@ -148,6 +148,8 @@ def train(args):
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
+        #TODO switch case op 
+
         criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
     elif args.classification:
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
@@ -365,20 +367,43 @@ def train(args):
     if args.combined_loss:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
+
+        #special case for clf only combined loss:
+        if args.combined_loss_clf:
+            print('HALLO!!')
+            tmp = np.digitize(regr_preds, bin_edges[1:-1])
+            regr_preds = [((bin_edges[idx] + bin_edges[idx + 1]) / 2) for idx in tmp]
+            print(regr_preds)
+
         r2 = r2_score(regr_labels, regr_preds)
         print(f'R2: {r2}')
         rmse = np.sqrt(((np.array(regr_labels) - np.array(regr_preds)) ** 2).mean())
         print(f'RMSE: {rmse}')
+        bias = (np.array(regr_labels) - np.array(regr_preds)).mean()
+        sep = np.sqrt(1/(len(regr_labels)-1) * ((np.array(regr_labels) - np.array(regr_preds) - bias) ** 2).sum())
+        rpd = np.std(regr_labels) / sep
+        print(f'RPD: {rpd}')
+        file = open("output.txt", "a")
+        file.write(f"{save_path}, r2 {r2}, rmse {rmse}, rpd {rpd}, test_acc {test_acc}\n")
+        file.close()
     elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
         file = open("output.txt", "a")
-        file.write(f"{save_path}, test acc {test_acc}\n")
+        file.write(f"{save_path}, test_acc {test_acc}\n")
         file.close()
     else:
         print(f'Average MSE: {total_loss / n_examples}')
         r2 = r2_score(all_labels, predicted_labels)
         print(f'R2: {r2}')
+        rmse = np.sqrt(((np.array(all_labels) - np.array(predicted_labels)) ** 2).mean())
+        print(f'RMSE: {rmse}')
+        rpd = np.std(all_labels) / rmse
+        print(f'RPD: {rpd}')
+        file = open("output.txt", "a")
+        file.write(f"{save_path}, r2 {r2}, rmse {rmse}, rpd {rpd} \n")
+        file.close()
+
 
     print('ground truth')
     print(all_labels[:50])
@@ -491,7 +516,7 @@ def main():
     parser.add_argument("--classification", action='store_true')
     parser.add_argument("--resnet", action='store_true')
     parser.add_argument("--set_data_split", action='store_true')
-    parser.add_argument("--seed", type=int, default=0) # 0 = NO SEED!
+    parser.add_argument("--seed", type=int, default=0) # -1 = NO SEED!
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=0.0001) # low lr by default!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task
@@ -506,6 +531,9 @@ def main():
     parser.add_argument("--gradcam_target_class", type=int, default=-1)
     parser.add_argument("--combined_loss", action='store_true') #regression with classification as regularizer
     parser.add_argument("--blur_labels", action='store_true')
+    parser.add_argument("--pca_components", type=int, default=0) # 0 = no PCA
+    parser.add_argument("--combined_loss_clf", action='store_true') #regression with classification as regularizer
+
 
     args = parser.parse_args()
     print(args)

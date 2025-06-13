@@ -91,7 +91,6 @@ class PoincareResidualBlock(nn.Module):
 class PoincareResNet(nn.Module):
     def __init__(
         self,
-        args,
         n_classes: int,
         base_dim: int,
         channel_sizes: list[int],
@@ -109,7 +108,7 @@ class PoincareResNet(nn.Module):
         self.base_dim = base_dim
 
         self.conv = hnn.HConvolution2d(
-            in_channels=base_dim//args.pooling_factor,
+            in_channels=base_dim,
             # in_channels=3,
             out_channels=channel_sizes[0],
             kernel_size=3,

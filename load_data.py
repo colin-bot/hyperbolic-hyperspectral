@@ -6,6 +6,8 @@ from skimage.measure import block_reduce
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor
 
+from pca import PCA
+
 def spectral_pooling(tens, factor=4, method='avg'):
     if method == 'avg':
         func = np.mean
@@ -34,6 +36,17 @@ def load_wrap_normalize(filepath, args):
     if args.pooling_factor != 1: 
         samples_tmp = spectral_pooling(dataset_tmp.samples, factor=args.pooling_factor, method=args.pooling_func)
     else: samples_tmp = dataset_tmp.samples
+    if args.pca_components > 0:
+        original_dims = samples_tmp.size()
+        pca = PCA(n_components=args.pca_components)
+        pca_samples = samples_tmp.flatten(0,2)
+        indices = torch.randperm(len(pca_samples))[:int(0.01 * len(pca_samples))]
+        pca_samples_tofit = pca_samples[indices]
+        pca.fit(pca_samples_tofit)
+        print(len(pca_samples_tofit))
+        pca_samples = pca.transform(pca_samples)
+        samples_tmp = torch.unflatten(pca_samples, 0, (original_dims[0], original_dims[1], original_dims[2]))
+        print(samples_tmp.size())
     samples_tmp = z_score(samples_tmp)
     samples_tmp = samples_tmp.permute(0, 3, 1, 2) # B,X,Y,C -> B,C,X,Y
     dataset_tmp.samples = samples_tmp
@@ -257,9 +270,9 @@ def get_dataset(args):
             dataset = load_dataset_combined(args)
         else:
             dataset = load_dataset(args)
-        train_size = 1000
-        val_size = 72
-        test_size = 100
+        train_size = 900
+        val_size = 136
+        test_size = 136
         n_classes = args.n_bins
     
     return dataset, train_size, val_size, test_size, n_classes

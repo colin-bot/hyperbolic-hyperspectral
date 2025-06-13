@@ -5,6 +5,8 @@ import argparse
 import numpy as np
 import random
 from sklearn.cross_decomposition import PLSRegression
+from sklearn.svm import SVR
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 
@@ -15,15 +17,23 @@ def train_plsr(args):
         random.seed(args.seed)
 
     dataset, train_size, val_size, test_size, n_classes = get_dataset(args)
-    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+    
+    generator1 = torch.Generator().manual_seed(42)
+    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=train_size)
     testloader = torch.utils.data.DataLoader(test_set, batch_size=1)
     X = next(iter(trainloader))[0].flatten(start_dim=1).numpy()
     y = next(iter(trainloader))[1].numpy()
     print(X.shape, y.shape)
 
-    plsr = PLSRegression(n_components=1)
-    plsr.fit(X, y)
+    if args.baseline_type == 'plsr':
+        model = PLSRegression(n_components=5)
+    elif args.baseline_type == 'svr':
+        model = SVR(C=1.0e7, gamma=1.0e4)
+    elif args.baseline_type == 'linear':
+        model = LinearRegression()
+    
+    model.fit(X, y)
 
     true_y = []
     predicted_y = []
@@ -48,7 +58,9 @@ def train_plsr(args):
         inputs, labels = data
         inputs = inputs.flatten(start_dim=1)
         true_y.append(float(labels))
-        preds = plsr.predict(inputs)
+        preds = model.predict(inputs)
+        if isinstance(preds, np.ndarray):
+            preds = preds[0]
         predicted_y.append(preds)
         true_y_hist.append(int(np.digitize(labels, bin_edges[1:-1])[0]))
         predicted_y_hist.append(int(np.digitize(preds, bin_edges[1:-1])))
@@ -62,6 +74,10 @@ def train_plsr(args):
     rmse = np.sqrt(((np.array(true_y) - np.array(predicted_y)) ** 2).mean())
     print(f'RMSE: {rmse}')
 
+    bias = (np.array(true_y) - np.array(predicted_y)).mean()
+    sep = np.sqrt(1/(len(true_y) - 1) * ((np.array(true_y) - np.array(predicted_y) - bias) ** 2).sum())
+    rpd = np.std(true_y) / sep
+    print(f'RPD: {rpd}')
 
     print(bin_edges[1:-1])
     print(true_y[:10])
@@ -72,7 +88,11 @@ def train_plsr(args):
     correct = sum(1 for i, j in zip(true_y_hist, predicted_y_hist) if i == j)
     print(correct)
     
-    print('acc@1=', correct / len(true_y_hist))
+    test_acc = correct / len(true_y_hist)
+
+    print('acc@1=', test_acc)
+
+    save_path = f"{args.baseline_type}_{args.dataset_label_type}_seed{args.seed}"
 
     if args.plot_preds:
         plt.scatter(true_y, predicted_y)
@@ -80,9 +100,13 @@ def train_plsr(args):
         plt.plot(np.arange(min_val, max_val, step=0.1), np.arange(min_val, max_val, step=0.1))
         plt.xlabel(f"true {args.dataset_label_type}")
         plt.ylabel(f"predicted {args.dataset_label_type}")
-        plt.title(f"R={r2}, RMSE={rmse}")
-        plt.savefig(f"./imgs/plsr_{args.dataset_label_type}.png")
+        plt.title(f"R={r2}, RMSE={rmse}, RPD={rpd}")
+        plt.savefig(f"./imgs/{save_path}.png")
         plt.show()
+
+    file = open("output.txt", "a")
+    file.write(f"{save_path}, r2 {r2}, rmse {rmse}, rpd {rpd}, test_acc {test_acc}\n")
+    file.close()
 
 
 def main():
@@ -96,6 +120,8 @@ def main():
     parser.add_argument("--pooling_factor", type=int, default=1) # dim reduction
     parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
     parser.add_argument("--combined_loss", action='store_true') #dummy
+    parser.add_argument("--pca_components", type=int, default=0) # dim reduction
+    parser.add_argument("--baseline_type", type=str, default='plsr') #dummy
 
     args = parser.parse_args()
     print(args)

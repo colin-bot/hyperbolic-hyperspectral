@@ -61,7 +61,7 @@ class CombinedLossHyp(nn.Module):
     
     def forward(self, predictions, targets):
         regr_preds = predictions[:,0]     
-        regr_preds = torch.exp(regr_preds)       
+        # regr_preds = torch.exp(regr_preds)       
         clf_preds = predictions[:, 1:]
         targets = targets.flatten()
         clf_targets = targets[1::2].long()
@@ -85,28 +85,6 @@ class CombinedLossHyp(nn.Module):
         elif self.regularization_mode == 'l2':
             loss = torch.mean((predicted_bin_centers - regr_preds) ** 2)
         return loss
-
-
-class ModelArgs:
-    def __init__(self,
-                 classification=True,
-                 resnet=True,
-                 special_modes=None,
-                 hypll=False,
-                 pooling_factor=1,
-                 pooling_func='avg',
-                 onebyoneconv=False,
-                 onebyoneconvdim=1,
-                 combined_loss=False):
-        self.classification = classification
-        self.resnet = resnet
-        self.special_modes = special_modes
-        self.hypll = hypll
-        self.pooling_factor = pooling_factor
-        self.pooling_func = pooling_func
-        self.onebyoneconv = onebyoneconv
-        self.onebyoneconvdim = onebyoneconvdim
-        self.combined_loss=combined_loss
 
 
 def train(args):
@@ -242,8 +220,6 @@ def train(args):
                 # forward + backward + optimize
                 outputs = net(inputs)
 
-                if args.hypll: outputs = outputs.tensor
-
                 if torch.isnan(outputs).any():
                     print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
                     print(outputs)
@@ -287,7 +263,6 @@ def train(args):
                         inputs = transform_inputs(inputs, data_transforms, special_modes)
                         # calculate outputs by running images through the network
                         outputs = net(inputs)
-                        if args.hypll: outputs = outputs.tensor
                         if not args.combined_loss and args.classification: labels = labels.long()
                         loss = criterion(outputs, labels)
                         val_loss += loss
@@ -355,7 +330,6 @@ def train(args):
             # calculate outputs by running images through the network
             outputs = net(inputs)
             if args.classification and not args.combined_loss: labels = labels.long()
-            if args.hypll: outputs = outputs.tensor
             loss = criterion(outputs, labels)
             total_loss += loss
             n_examples += len(labels)
@@ -365,7 +339,8 @@ def train(args):
                 all_labels += clf_labels.tolist()
                 regr_labels += tmp_labels[::2].tolist()
                 _, predicted = torch.max(outputs[:, 1:], 1)
-                regr_preds += torch.exp(outputs[:, 0]).flatten().tolist()
+                # regr_preds += torch.exp(outputs[:, 0]).flatten().tolist()
+                regr_preds += outputs[:, 0].flatten().tolist()
                 total_correct += (predicted == clf_labels).sum().item()
                 predicted_labels += predicted.tolist()
             elif args.classification:
@@ -386,6 +361,13 @@ def train(args):
         print(f'R2: {r2}')
         rmse = np.sqrt(((np.array(regr_labels) - np.array(regr_preds)) ** 2).mean())
         print(f'RMSE: {rmse}')
+        bias = (np.array(regr_labels) - np.array(regr_preds)).mean()
+        sep = np.sqrt(1/(len(regr_labels)-1) * ((np.array(regr_labels) - np.array(regr_preds) - bias) ** 2).sum())
+        rpd = np.std(regr_labels) / sep
+        print(f'RPD: {rpd}')
+        file = open("output.txt", "a")
+        file.write(f"{save_path}, r2 {r2}, rmse {rmse}, rpd {rpd}, test_acc {test_acc}\n")
+        file.close()
     elif args.classification:
         test_acc = total_correct / n_examples
         print(f'Accuracy: {test_acc}')
@@ -444,10 +426,10 @@ def main():
     parser.add_argument("--pooling_func", type=str) # dim reduction, options 'avg', 'max', 'min'
     parser.add_argument("--onebyoneconv", action='store_true')
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
-    parser.add_argument("--hypll", action='store_true')
     parser.add_argument("--hyp_weight", type=float, default=0.5)
     parser.add_argument("--combined_loss", action='store_true')
     parser.add_argument("--blur_labels", action='store_true')
+    parser.add_argument("--pca_components", type=int, default=0) #0 = no pca
 
 
     # Output settings

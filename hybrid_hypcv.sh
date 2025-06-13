@@ -15,6 +15,6 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 PYTHONPATH=$PYTHONPATH:../HyperbolicCV/code/:../HyperbolicCV/code/classification/
 
-python3 hybrid_hypcv.py --combined_loss --dataset_label_type brix --n_bins 4 --seed 333 --plot_preds \
+python3 hybrid_hypcv.py --combined_loss --dataset_label_type penetro --n_bins 4 --seed 333 --plot_preds \
     --hyp_weight 0.5 --num_layers 18 --embedding_dim 32 --encoder_manifold euclidean \
     --decoder_manifold lorentz --encoder_k 1.0 --decoder_k 1.0 --pooling_factor 4 --pooling_func min
