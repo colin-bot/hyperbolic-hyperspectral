@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=training
 #SBATCH --ntasks=1
@@ -65,9 +65,9 @@ elif [[ $MODE == "combined_loss" ]]; then
     #     python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
     # 
     if [[ $LABELTYPE == "all" ]]; then
-        python3 train_euc_hypll.py --dataset_label_type brix --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pca_components 51
-        python3 train_euc_hypll.py --dataset_label_type aweta --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pca_components 51
-        python3 train_euc_hypll.py --dataset_label_type penetro --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --pca_components 51
+        python3 train_euc_hypll.py --dataset_label_type brix --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
+        python3 train_euc_hypll.py --dataset_label_type aweta --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
+        python3 train_euc_hypll.py --dataset_label_type penetro --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
     else
         python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED 
     fi

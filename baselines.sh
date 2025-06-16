@@ -13,6 +13,6 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python3 baselines.py --baseline_type plsr --dataset_label_type penetro --seed 11 --plot_preds --pca_components 50
-python3 baselines.py --baseline_type plsr --dataset_label_type brix --seed 11 --plot_preds --pca_components 50
-python3 baselines.py --baseline_type plsr --dataset_label_type aweta --seed 11 --plot_preds --pca_components 50
+python3 baselines.py --baseline_type plsr --dataset_label_type penetro --seed 0
+python3 baselines.py --baseline_type plsr --dataset_label_type brix --seed 0
+python3 baselines.py --baseline_type plsr --dataset_label_type aweta --seed 0

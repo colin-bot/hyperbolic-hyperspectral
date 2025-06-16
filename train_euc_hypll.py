@@ -42,7 +42,7 @@ def blur_labels(labels, num_classes, device):
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, bin_edges, weights=(0.01,1.,0.1), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
+    def __init__(self, bin_edges, weights=(1.0,0.0,0.0), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
         super(CombinedLoss, self).__init__()
         self.bin_edges = bin_edges
         self.weights = weights
