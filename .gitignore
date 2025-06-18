@@ -8,3 +8,5 @@ data_small/
 models/
 good_models/
 imgs/
+npys/
+*.txt

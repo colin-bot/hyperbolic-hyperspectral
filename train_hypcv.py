@@ -152,7 +152,12 @@ def train(args):
 
     ## EVAL ##
     if args.combined_loss:
-        criterion = CombinedLossHyp(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
+        criterion = CombinedLossHyp(bin_edges=torch.tensor(bin_edges).to(device), 
+                                    blur_labels=args.blur_labels, 
+                                    num_classes=n_classes, 
+                                    device=device,
+                                    weights=tuple([float(x) for x in args.loss_weights.split('-')]))
+
     elif args.classification:
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     else:
@@ -166,7 +171,7 @@ def train(args):
 
     hyp_weight = args.hyp_weight
 
-    save_path = f'hypcv_E{args.encoder_manifold}_D{args.decoder_manifold}_{args.dataset_label_type}{args.n_bins}_{args.seed}'
+    save_path = f'hypcv_E{args.encoder_manifold}_D{args.decoder_manifold}_{args.dataset_label_type}{args.n_bins}_{args.loss_weights}_{args.seed}'
     model_path = f'models/{save_path}.pt'
 
     if not args.eval_only:
@@ -428,6 +433,7 @@ def main():
     parser.add_argument("--onebyoneconvdim", type=int, default=32)
     parser.add_argument("--hyp_weight", type=float, default=0.5)
     parser.add_argument("--combined_loss", action='store_true')
+    parser.add_argument("--loss_weights", type=str, default='0.01-1.0-0.1')
     parser.add_argument("--blur_labels", action='store_true')
     parser.add_argument("--pca_components", type=int, default=0) #0 = no pca
 

@@ -42,7 +42,7 @@ def blur_labels(labels, num_classes, device):
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, bin_edges, weights=(1.0,0.0,0.0), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
+    def __init__(self, bin_edges, weights=(0.01,1.0,0.1), regularization_mode='l1', blur_labels=False, num_classes=8, device='cuda'):
         super(CombinedLoss, self).__init__()
         self.bin_edges = bin_edges
         self.weights = weights
@@ -52,6 +52,7 @@ class CombinedLoss(nn.Module):
         self.blur_labels = blur_labels
         self.num_classes = num_classes
         self.device = device
+        print(f'initialized combined loss with weights {weights}')
     
     def forward(self, predictions, targets):
         regr_preds = predictions[:,0]            
@@ -144,13 +145,17 @@ def train(args):
     else:
         pathtmp2="convnet"
     
-    save_path = f"{pathtmp}_{args.dataset_label_type}{args.n_bins}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
+    save_path = f"{pathtmp}_{args.dataset_label_type}{args.n_bins}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}_{args.loss_weights}"
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
         #TODO switch case op 
 
-        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), blur_labels=args.blur_labels, num_classes=n_classes, device=device)
+        criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), 
+                                 blur_labels=args.blur_labels, 
+                                 num_classes=n_classes, 
+                                 weights=tuple([float(x) for x in args.loss_weights.split('-')]), 
+                                 device=device)
     elif args.classification:
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     else:
@@ -362,7 +367,7 @@ def train(args):
                 predicted_labels += predicted.tolist()
             else:
                 all_labels += labels.tolist()
-                predicted_labels += outputs.tolist()
+                predicted_labels += outputs.flatten().tolist()
 
     if args.combined_loss:
         test_acc = total_correct / n_examples
@@ -371,9 +376,11 @@ def train(args):
         #special case for clf only combined loss:
         if args.combined_loss_clf:
             print('HALLO!!')
-            tmp = np.digitize(regr_preds, bin_edges[1:-1])
-            regr_preds = [((bin_edges[idx] + bin_edges[idx + 1]) / 2) for idx in tmp]
+            regr_preds = [((bin_edges[idx] + bin_edges[idx + 1]) / 2) for idx in predicted_labels]
             print(regr_preds)
+
+        np.save('npys/tmp2_true.npy', regr_labels)
+        np.save('npys/tmp2_pred.npy', regr_preds)
 
         r2 = r2_score(regr_labels, regr_preds)
         print(f'R2: {r2}')
@@ -393,12 +400,18 @@ def train(args):
         file.write(f"{save_path}, test_acc {test_acc}\n")
         file.close()
     else:
+        np.save('npys/tmp_true.npy', all_labels)
+        np.save('npys/tmp_pred.npy', predicted_labels)
+        print(all_labels)
+        print(predicted_labels)
         print(f'Average MSE: {total_loss / n_examples}')
         r2 = r2_score(all_labels, predicted_labels)
         print(f'R2: {r2}')
         rmse = np.sqrt(((np.array(all_labels) - np.array(predicted_labels)) ** 2).mean())
         print(f'RMSE: {rmse}')
-        rpd = np.std(all_labels) / rmse
+        bias = (np.array(all_labels) - np.array(predicted_labels)).mean()
+        sep = np.sqrt(1/(len(all_labels)-1) * ((np.array(all_labels) - np.array(predicted_labels) - bias) ** 2).sum())
+        rpd = np.std(all_labels) / sep
         print(f'RPD: {rpd}')
         file = open("output.txt", "a")
         file.write(f"{save_path}, r2 {r2}, rmse {rmse}, rpd {rpd} \n")
@@ -432,7 +445,7 @@ def train(args):
         plt.show()
 
     if args.gradcam:
-        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=len(test_set),
+        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=2,
                                                     shuffle=shuffle, num_workers=2)        
 
         target_layers = [net.layer4[-1]]
@@ -440,6 +453,8 @@ def train(args):
         # input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
         input_img, target = example[0].to(device), example[1]
         print(input_img.size())
+
+        np.save('npys/input.npy', input_img.cpu().numpy())
 
         target_class = args.gradcam_target_class
 
@@ -450,8 +465,10 @@ def train(args):
         with GradCAM(model=net, target_layers=target_layers) as cam:
             grayscale_cam = cam(input_tensor=input_img, targets=targets)
             print(grayscale_cam.shape)
+            np.save('npys/gradcam_raw.npy', grayscale_cam)
             # In this example grayscale_cam has only one image in the batch:
             grayscale_cam_avg = np.mean(grayscale_cam, axis=0)
+            plt.clf()
             plt.imshow(grayscale_cam_avg)
             plt.xticks([])
             plt.yticks([])
@@ -474,24 +491,24 @@ def train(args):
             #     plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
             
 
-        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=1,
-                                                    shuffle=shuffle, num_workers=2)
-        example = next(iter(newtestloader))
-        input_img, target = gradcam_helper(example[0]).to(device), int(example[1])
-        targets = [ClassifierOutputReST(target)] * input_img.size()[0]
+        # newtestloader = torch.utils.data.DataLoader(test_set, batch_size=1,
+        #                                             shuffle=shuffle, num_workers=2)
+        # example = next(iter(newtestloader))
+        # input_img, target = gradcam_helper(example[0]).to(device), int(example[1])
+        # targets = [ClassifierOutputReST(target)] * input_img.size()[0]
 
-        print(input_img[0][0])
-        print(input_img[0][1])
-        print(input_img[1][1])
-        print(input_img[1][0])
+        # print(input_img[0][0])
+        # print(input_img[0][1])
+        # print(input_img[1][1])
+        # print(input_img[1][0])
 
-        with GradCAM(model=net, target_layers=target_layers) as cam:
-            grayscale_cam = cam(input_tensor=input_img, targets=targets)
-            gradcam_per_channel = np.mean(grayscale_cam, axis=(1,2))
-            print(gradcam_per_channel)    
-            plt.clf()
-            plt.plot(range(len(gradcam_per_channel)), gradcam_per_channel)
-            plt.savefig(f"./imgs/gradcam_channels_{save_path}.png")
+        # with GradCAM(model=net, target_layers=target_layers) as cam:
+        #     grayscale_cam = cam(input_tensor=input_img, targets=targets)
+        #     gradcam_per_channel = np.mean(grayscale_cam, axis=(1,2))
+        #     print(gradcam_per_channel)    
+        #     plt.clf()
+        #     plt.plot(range(len(gradcam_per_channel)), gradcam_per_channel)
+        #     plt.savefig(f"./imgs/gradcam_channels_{save_path}.png")
 
 def gradcam_helper(input_img):
     input_img = input_img.squeeze()
@@ -530,6 +547,7 @@ def main():
     parser.add_argument("--gradcam", action='store_true')
     parser.add_argument("--gradcam_target_class", type=int, default=-1)
     parser.add_argument("--combined_loss", action='store_true') #regression with classification as regularizer
+    parser.add_argument("--loss_weights", type=str, default='0.01-1.0-0.1')
     parser.add_argument("--blur_labels", action='store_true')
     parser.add_argument("--pca_components", type=int, default=0) # 0 = no PCA
     parser.add_argument("--combined_loss_clf", action='store_true') #regression with classification as regularizer

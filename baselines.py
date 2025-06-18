@@ -32,6 +32,9 @@ def train_plsr(args):
         model = SVR(C=1.0e7, gamma=1.0e4)
     elif args.baseline_type == 'linear':
         model = LinearRegression()
+    else:
+        print('Unkown baseline')
+        return
     
     model.fit(X, y)
 

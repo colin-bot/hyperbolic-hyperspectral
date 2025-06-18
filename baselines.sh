@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=baseline
 #SBATCH --ntasks=1
@@ -13,6 +13,6 @@ module purge
 module load 2023
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python3 baselines.py --baseline_type plsr --dataset_label_type penetro --seed 0
-python3 baselines.py --baseline_type plsr --dataset_label_type brix --seed 0
-python3 baselines.py --baseline_type plsr --dataset_label_type aweta --seed 0
+python3 baselines.py --baseline_type linear --dataset_label_type penetro --seed 10 --pca_components 51
+python3 baselines.py --baseline_type linear --dataset_label_type brix --seed 10 --pca_components 51
+python3 baselines.py --baseline_type linear --dataset_label_type aweta --seed 10 --pca_components 51

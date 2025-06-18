@@ -18,7 +18,8 @@ elif [[ "$1" == "eval_euc" ]]; then
     sbatch train.sh 2 penetro eval_euc_pooled
 elif [[ "$1" == "combined_loss" ]]; then
     # for seed in "0"
-    for seed in "0" "1" "2" "3" "4"
+    # for seed in "0" "1" "2" "3" "4"
+    for seed in "0" "1" "2"
     do
         sbatch train.sh $seed all combined_loss
     done

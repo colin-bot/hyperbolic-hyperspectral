@@ -65,11 +65,14 @@ elif [[ $MODE == "combined_loss" ]]; then
     #     python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
     # 
     if [[ $LABELTYPE == "all" ]]; then
-        python3 train_euc_hypll.py --dataset_label_type brix --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
-        python3 train_euc_hypll.py --dataset_label_type aweta --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
-        python3 train_euc_hypll.py --dataset_label_type penetro --combined_loss --blur_labels --n_bins 36 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED
+        for label in "brix" "aweta" "penetro"
+        do
+        python3 train_euc_hypll.py --dataset_label_type $label --combined_loss --loss_weights 0.01-1.0-0.1 --blur_labels --resnet --n_bins 8 --n_epochs 30 --lr 0.00001 --seed $SEED 
+        # python3 train_euc_hypll.py --dataset_label_type $label --n_epochs 30 --lr 0.00001 --resnet --seed $SEED 
+        done
     else
-        python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED 
+        python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --loss_weights 0.01-1.0-0.1 --blur_labels --n_bins 32 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --plot_preds --eval_only --gradcam --gradcam_target_class 0 
+        # python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --plot_preds --eval_only
     fi
 elif [[ $MODE == "plot_combined_loss" ]]; then 
     if [[ $LABELTYPE == "all" ]]; then
@@ -77,7 +80,7 @@ elif [[ $MODE == "plot_combined_loss" ]]; then
         python3 train_euc_hypll.py --dataset_label_type aweta --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --eval_only --plot_preds
         python3 train_euc_hypll.py --dataset_label_type penetro --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --eval_only --plot_preds
     else
-        python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --eval_only --plot_preds
+        python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --combined_loss --blur_labels --n_bins 8 --n_epochs 30 --lr 0.00001 --resnet --seed $SEED --eval_only --plot_preds 
     fi
 elif [[ $MODE == "gradcam" ]]; then 
     python3 train_euc_hypll.py --dataset_label_type ${LABELTYPE} --n_bins $NBINS --n_epochs 30 --lr 0.00001 --classification --resnet --seed $SEED --eval_only --gradcam
