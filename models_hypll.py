@@ -1,25 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Training a Poincare ResNet
-==========================
-
-This is an implementation based on the Poincare Resnet paper, which can be found at:
-
-- https://arxiv.org/abs/2303.14027
-
-Due to the complexity of hyperbolic operations we strongly advise to only run this tutorial with a 
-GPU.
-
-We will perform the following steps in order:
-
-1. Define a hyperbolic manifold
-2. Load and normalize the CIFAR10 training and test datasets using ``torchvision``
-3. Define a Poincare ResNet
-4. Define a loss function and optimizer
-5. Train the network on the training data
-6. Test the network on the test data
-
-"""
+# Model definitions of the Poincare architectures (not used in experiments)
 
 import torch
 
@@ -109,7 +88,6 @@ class PoincareResNet(nn.Module):
 
         self.conv = hnn.HConvolution2d(
             in_channels=base_dim,
-            # in_channels=3,
             out_channels=channel_sizes[0],
             kernel_size=3,
             manifold=manifold,

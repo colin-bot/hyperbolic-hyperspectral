@@ -1,6 +1,7 @@
-# based on PyTorch's example
-# https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-
+# Script to test a hybrid of a Lorentzian  (based on HyperbolicCV) and Euclidean model 
+# Usage: python3 hybrid_hypcv.py --dataset_label_type [brix/aweta/penetro]
+# Furter args explained in the main function
+# Enter the paths to trained models in the train function
 
 import torch
 
@@ -10,12 +11,6 @@ from models_euc import get_model
 
 import os
 import sys
-
-# working_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), "../")
-# os.chdir(working_dir)
-
-# lib_path = os.path.join(working_dir)
-# sys.path.append(lib_path)
 
 from utils.initialize import select_dataset, select_model, select_optimizer, load_checkpoint
 from torch.nn import DataParallel
@@ -108,23 +103,6 @@ def train(args):
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
 
-    # if args.classification:
-    #     pathtmp = "classif"
-    # else:
-    #     pathtmp="regress"
-    
-    # if args.hypll:
-    #     pathtmp2="poincare"
-    # elif args.resnet:
-    #     pathtmp2="resnet"
-    # elif 'avg1d' in special_modes:
-    #     pathtmp2="avg1d"
-    # else:
-    #     pathtmp2="convnet"
-    
-    # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
-    # model_path_euc = f'./models/{save_path}.pth'
-
     euc_args = ModelArgs(classification=False,
                          n_bins=args.n_bins,
                          dataset_label_type=args.dataset_label_type,
@@ -136,14 +114,6 @@ def train(args):
                          onebyoneconv=False,
                          onebyoneconvdim=0,
                          combined_loss=True)
-    # hyp_args = ModelArgs(classification=args.classification, 
-                        #  resnet=False, 
-                        #  special_modes=args.special_modes,
-                        #  hypll=True,
-                        #  pooling_factor=args.pooling_factor,
-                        #  pooling_func=args.pooling_func,
-                        #  onebyoneconv=args.onebyoneconv,
-                        #  onebyoneconvdim=args.onebyoneconvdim)
 
     model_path_euc = f'models/combined_{args.dataset_label_type}{args.n_bins}_resnet_30eps_seed{args.seed}.pth'
     net_euc = get_model(euc_args, n_classes=n_classes).to(device)
@@ -158,7 +128,6 @@ def train(args):
     net_hyp = DataParallel(net_hyp, device_ids=device_tmp)
     model_path_hyp = f'models/hypcv_Eeuclidean_Dlorentz_{args.dataset_label_type}{args.n_bins}_{args.seed}.pt'
     checkpoint = torch.load(model_path_hyp, map_location=device)
-    # net_hyp.module.load_state_dict(checkpoint['model'], strict=True)
     net_hyp.load_state_dict(checkpoint)
 
 
@@ -190,14 +159,6 @@ def train(args):
             logits_euc = net_euc(inputs)
             logits_hyp = net_hyp(inputs)
 
-            # print(logits_euc)
-            # print(logits_hyp)
-
-            # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
-            # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
-
-
-            # print(outputs)
             if args.combined_loss:
                 regr_euc = logits_euc[:,0]
                 regr_hyp = logits_hyp[:,0]
@@ -212,7 +173,6 @@ def train(args):
                 n_examples += len(labels)
                 all_labels += labels.tolist()
                 if args.classification:
-                    # outputs = F.softmax(outputs, dim=1)
                     _, predicted = torch.max(outputs, dim=1)
                     total_correct += (predicted == labels).sum().item()
                     predicted_labels += predicted.tolist()

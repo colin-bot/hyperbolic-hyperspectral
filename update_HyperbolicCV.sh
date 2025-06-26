@@ -1,3 +1,5 @@
+# Script used to update the HyperbolicCV library to be compatible with our hyperspectral data
+
 rm ../HyperbolicCV/code/classification/models/classifier.py
 cp update_HyperbolicCV/classifier.py ../HyperbolicCV/code/classification/models/classifier.py
 

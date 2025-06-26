@@ -1,4 +1,5 @@
-#!/bin/bash
+# Script to start Snellius jobs for our main experiments. 
+# Usage: ./experiment.sh combined_loss
 
 if [[ "$1" == "hybrid" ]]; then
     sbatch test_hybrid.sh 1 brix

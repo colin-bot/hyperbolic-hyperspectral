@@ -1,6 +1,9 @@
-# based on PyTorch's example
-# https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-
+# Script to train and test Euclidean and Poincare models used in experiments
+# Usage for ERN: python3 baselines.py --resnet 
+#                                     --dataset_label_type [brix/aweta/penetro]
+# For HS-CNN: omit --resnet argument
+# For HypLL: use --hypll instead of --resnet argument
+# Furter args explained in the main function
 
 import torch
 
@@ -444,7 +447,7 @@ def train(args):
             targetclasstext = f"class_{target_class}" if target_class != -1 else "avg"
             plt.savefig(f"./imgs/gradcam_{targetclasstext}_{save_path}.png")
 
-
+        # For GradCAM per channel (experimental):
         # with GradCAM(model=net, target_layers=target_layers) as cam:
         #     grayscale_cam = cam(input_tensor=input_img, targets=targets)
         #     gradcam_per_channel = np.mean(grayscale_cam, axis=(1,2))

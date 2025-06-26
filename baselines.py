@@ -1,3 +1,8 @@
+# Script to train and test PLSR, SVR or LR baseline
+# Usage: python3 baselines.py --baseline_type [plsr/svr/linear] 
+#                             --dataset_label_type [brix/aweta/penetro]
+# Furter args explained in the main function
+
 from load_data import get_dataset
 from data import KiwiDataset
 import torch
@@ -68,9 +73,6 @@ def train_plsr(args):
         true_y_hist.append(int(np.digitize(labels, bin_edges[1:-1])[0]))
         predicted_y_hist.append(int(np.digitize(preds, bin_edges[1:-1])))
 
-    print(len(true_y))
-    print(len(np.unique(np.array(predicted_y))))
-
     r2 = r2_score(true_y, predicted_y)
     print(f'R2: {r2}')
 
@@ -82,14 +84,7 @@ def train_plsr(args):
     rpd = np.std(true_y) / sep
     print(f'RPD: {rpd}')
 
-    print(bin_edges[1:-1])
-    print(true_y[:10])
-    print(predicted_y[:10])
-    print(true_y_hist[:10])
-    print(predicted_y_hist[:10])
-
     correct = sum(1 for i, j in zip(true_y_hist, predicted_y_hist) if i == j)
-    print(correct)
     
     test_acc = correct / len(true_y_hist)
 

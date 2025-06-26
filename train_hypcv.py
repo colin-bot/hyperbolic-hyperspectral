@@ -1,6 +1,9 @@
-# based on PyTorch's example
-# https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-
+# Script to train and test Lorentzian models used in experiments
+# Usage for HRN-E: python3 baselines.py --encoder_manifold lorentz
+#                                       --decoder_manifold euclidean 
+#                                       --dataset_label_type [brix/aweta/penetro]
+# For HRN-L: use --decoder_manifold lorentz
+# Furter args explained in the main function
 
 import torch
 

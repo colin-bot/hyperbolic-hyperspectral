@@ -1,6 +1,7 @@
-# based on PyTorch's example
-# https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-
+# Script to test a hybrid of a Poincare (based on HypLL) and Euclidean model 
+# Usage: python3 hybrid_hypll.py --dataset_label_type [brix/aweta/penetro]
+# Furter args explained in the main function
+# Enter the paths to trained models in the train function
 
 import torch
 

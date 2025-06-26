@@ -1,3 +1,5 @@
+# Model definitions of the Euclidean architectures used in experiments
+
 import torch.nn as nn
 import torch.nn.functional as F
 import torch

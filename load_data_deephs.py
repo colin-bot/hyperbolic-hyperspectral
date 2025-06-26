@@ -1,3 +1,5 @@
+# Helper functions used to load alternate dataset (from deephs_fruit)
+
 from core.datasets.hyperspectral_dataset import HyperspectralDataset, get_records
 from core.name_convention import CameraType, ClassificationType, Fruit
 from classification.transformers.normalize import Normalize
