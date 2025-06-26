@@ -86,23 +86,6 @@ def train(args):
     if args.special_modes: special_modes = args.special_modes.split('-')
     else: special_modes = []
 
-    # if args.classification:
-    #     pathtmp = "classif"
-    # else:
-    #     pathtmp="regress"
-    
-    # if args.hypll:
-    #     pathtmp2="poincare"
-    # elif args.resnet:
-    #     pathtmp2="resnet"
-    # elif 'avg1d' in special_modes:
-    #     pathtmp2="avg1d"
-    # else:
-    #     pathtmp2="convnet"
-    
-    # save_path_euc = f"{pathtmp}_{args.dataset_label_type}_{pathtmp2}_{args.n_epochs}eps_seed{args.seed}"
-    # model_path_euc = f'./models/{save_path}.pth'
-
     euc_args = ModelArgs(classification=args.classification, 
                          resnet=True, 
                          special_modes=args.special_modes,
@@ -156,15 +139,10 @@ def train(args):
             logits_euc = net_euc(inputs)
             logits_hyp = net_hyp(inputs).tensor
 
-            # print(logits_euc)
-            # print(logits_hyp)
-
             # logits_euc = logits_euc / logits_euc.sum(dim=1).unsqueeze(dim=1)
             # logits_hyp = logits_hyp / logits_hyp.sum(dim=1).unsqueeze(dim=1)
 
             outputs = (1-hyp_weight) * logits_euc + hyp_weight * logits_hyp
-
-            # print(outputs)
 
             if args.classification: labels = labels.long()
             loss = criterion(outputs, labels)
@@ -172,7 +150,6 @@ def train(args):
             n_examples += len(labels)
             all_labels += labels.tolist()
             if args.classification:
-                # outputs = F.softmax(outputs, dim=1)
                 _, predicted = torch.max(outputs, dim=1)
                 total_correct += (predicted == labels).sum().item()
                 predicted_labels += predicted.tolist()

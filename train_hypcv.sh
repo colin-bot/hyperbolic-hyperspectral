@@ -15,16 +15,12 @@ module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 PYTHONPATH=$PYTHONPATH:../HyperbolicCV/code/:../HyperbolicCV/code/classification/:../deephs_fruit
 
-# python3 train_convnet.py --n_epochs 30 --lr 0.005 --seed 1 --dataset_label_type penetro \
-#         --n_bins 4 --combined_loss --blur_labels --plot_preds --pooling_factor 4 --pooling_func min
-
 for label in "brix" "aweta" "penetro" 
 do
-        python3 train_hypcv.py --n_epochs 30 --lr 0.001 --loss_weights 1.0-1.0-1.0 --seed 0 --dataset_label_type $label \
+        python3 train_hypcv.py --n_epochs 10 --lr 0.001 --loss_weights 0.01-1.0-0.1 --seed 0 --dataset_label_type $label \
         --n_bins 8 --combined_loss --blur_labels --plot_preds --num_layers 18 --embedding_dim 32 \
-        --encoder_manifold lorentz --decoder_manifold lorentz --encoder_k 1.0 --decoder_k 1.0 \
+        --encoder_manifold lorentz --decoder_manifold euclidean --encoder_k 1.0 --decoder_k 1.0 \
         --use_lr_scheduler --optimizer RiemannianAdam
 done
-# python3 train_hypcv.py --n_epochs 20 --lr 0.0001 --seed 1 --dataset_label_type aweta --n_bins 8 --combined_loss --blur_labels --plot_preds --num_layers 18 --embedding_dim 32 --encoder_manifold lorentz --decoder_manifold lorentz --encoder_k 1.0 --decoder_k 1.0
 
 

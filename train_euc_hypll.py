@@ -111,7 +111,6 @@ def train(args):
             # Set seed
             generator1 = torch.Generator().manual_seed(42)
             train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size], generator=generator1)
-            # train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
 
         print('train val test size', len(train_set), len(val_set), len(test_set))
 
@@ -149,8 +148,6 @@ def train(args):
     model_path = f'./models/{save_path}.pth'
     
     if args.combined_loss:
-        #TODO switch case op 
-
         criterion = CombinedLoss(bin_edges=torch.tensor(bin_edges).to(device), 
                                  blur_labels=args.blur_labels, 
                                  num_classes=n_classes, 
@@ -164,19 +161,14 @@ def train(args):
     if not args.eval_only:
         net = get_model(args, n_classes=n_classes).to(device)
     
-        # print(net)
-
         n_params = 0
         for name, p in net.named_parameters():
             if isinstance(p, ManifoldParameter):
-                # print(name, p.tensor.abs().mean())
                 n_params += p.tensor.numel()
             else:
-                # print(name, p.abs().mean())
                 n_params += p.numel()
         print(f'{n_params} total parameters')
 
-        # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9)
         if args.hypll:
             optimizer = RiemannianAdam(net.parameters(), lr=args.lr)
         else:
@@ -214,35 +206,22 @@ def train(args):
 
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                # print(inputs.shape, labels.shape)
-
-                # zero the parameter gradients
                 optimizer.zero_grad()
-
-                # forward + backward + optimize
                 outputs = net(inputs)
 
                 if args.hypll: outputs = outputs.tensor
 
                 if torch.isnan(outputs).any():
-                    print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
+                    print(f'Output contains NaNs! {torch.isnan(inputs).sum()} NaNs, iteration {i}')
                     print(outputs)
                     break
 
                 loss = criterion(outputs, labels)
                 if torch.isnan(loss):
-                    print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
+                    print(f'Loss {loss} is a NaN at iter {i}, labels: {labels}')
                     nan_ctr += 1
 
                 loss.backward()
-
-                # for name, param in net.named_parameters():
-                    # if isinstance(p, ManifoldParameter):
-                        # print(name, param.grad.tensor.abs().mean())
-                    # else:
-                        # print(name, param.grad.abs().mean())
-
-                # break
 
                 optimizer.step()
 
@@ -252,11 +231,9 @@ def train(args):
                     print(f'minibatch loss {loss.item()}')
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
-                
-                # print(loss.item())
-            
+                            
             # VALIDATION
-            eval_every_n_epochs = 1 #todo make into args?
+            eval_every_n_epochs = 1 
             early_stopping_threshold = 5
 
             if epoch % eval_every_n_epochs == 0:
@@ -270,7 +247,7 @@ def train(args):
                     for data in valloader:
                         inputs, labels = data[0].to(device), data[1].to(device)
                         inputs = transform_inputs(inputs, data_transforms, special_modes)
-                        # calculate outputs by running images through the network
+
                         outputs = net(inputs)
                         if args.hypll: outputs = outputs.tensor
                         if not args.combined_loss and args.classification: labels = labels.long()
@@ -288,11 +265,6 @@ def train(args):
                             correct += (predicted == labels).sum().item()
 
                         predicted_labels += predicted.tolist()
-
-                        # if first_minibatch:
-                        #     print(labels, predicted)
-                        #     print(outputs)
-                        #     first_minibatch = False
             
                 val_acc = correct / len(true_labels)
                 if args.classification and not args.combined_loss:
@@ -375,7 +347,6 @@ def train(args):
 
         #special case for clf only combined loss:
         if args.combined_loss_clf:
-            print('HALLO!!')
             regr_preds = [((bin_edges[idx] + bin_edges[idx + 1]) / 2) for idx in predicted_labels]
             print(regr_preds)
 
@@ -445,16 +416,13 @@ def train(args):
         plt.show()
 
     if args.gradcam:
-        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=2,
+        newtestloader = torch.utils.data.DataLoader(test_set, batch_size=5,
                                                     shuffle=shuffle, num_workers=2)        
 
         target_layers = [net.layer4[-1]]
         example = next(iter(newtestloader))
         # input_img, target = example[0][1].unsqueeze(0).to(device), example[1][1]
         input_img, target = example[0].to(device), example[1]
-        print(input_img.size())
-
-        np.save('npys/input.npy', input_img.cpu().numpy())
 
         target_class = args.gradcam_target_class
 
@@ -464,8 +432,6 @@ def train(args):
             targets = [ClassifierOutputReST(target_class)] * len(test_set)
         with GradCAM(model=net, target_layers=target_layers) as cam:
             grayscale_cam = cam(input_tensor=input_img, targets=targets)
-            print(grayscale_cam.shape)
-            np.save('npys/gradcam_raw.npy', grayscale_cam)
             # In this example grayscale_cam has only one image in the batch:
             grayscale_cam_avg = np.mean(grayscale_cam, axis=0)
             plt.clf()
@@ -478,29 +444,6 @@ def train(args):
             targetclasstext = f"class_{target_class}" if target_class != -1 else "avg"
             plt.savefig(f"./imgs/gradcam_{targetclasstext}_{save_path}.png")
 
-            # for i in range(3):
-            #     grayscale_cam_img = grayscale_cam[i, :]
-            #     # You can also get the model outputs without having to redo inference
-            #     # model_outputs = cam.outputs
-            #     plt.imshow(grayscale_cam_img)
-            #     plt.xticks([])
-            #     plt.yticks([])
-            #     plt.xlabel("")
-            #     plt.ylabel("")
-            #     plt.title(f"GradCAM {i}")
-            #     plt.savefig(f"./imgs/gradcam_{i}_{save_path}.png")
-            
-
-        # newtestloader = torch.utils.data.DataLoader(test_set, batch_size=1,
-        #                                             shuffle=shuffle, num_workers=2)
-        # example = next(iter(newtestloader))
-        # input_img, target = gradcam_helper(example[0]).to(device), int(example[1])
-        # targets = [ClassifierOutputReST(target)] * input_img.size()[0]
-
-        # print(input_img[0][0])
-        # print(input_img[0][1])
-        # print(input_img[1][1])
-        # print(input_img[1][0])
 
         # with GradCAM(model=net, target_layers=target_layers) as cam:
         #     grayscale_cam = cam(input_tensor=input_img, targets=targets)
@@ -519,9 +462,7 @@ def gradcam_helper(input_img):
         for j in range(n_channels):
             if j == i: continue
             input_img[i][j] = 0.
-        #TEST:
-        # input_img[i][0] = input_img[i][i]
-        # if i != 0: input_img[i][i] = 0.
+
     return input_img
 
 def main():
@@ -533,7 +474,7 @@ def main():
     parser.add_argument("--classification", action='store_true')
     parser.add_argument("--resnet", action='store_true')
     parser.add_argument("--set_data_split", action='store_true')
-    parser.add_argument("--seed", type=int, default=0) # -1 = NO SEED!
+    parser.add_argument("--seed", type=int, default=0) # -1 = no random seed
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=0.0001) # low lr by default!
     parser.add_argument("--n_bins", type=int, default=0) # for bin classification task

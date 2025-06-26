@@ -10,3 +10,4 @@ good_models/
 imgs/
 npys/
 *.txt
+!requirements.txt

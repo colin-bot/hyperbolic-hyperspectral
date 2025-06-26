@@ -6,16 +6,9 @@ import torch
 
 from data import KiwiDataset, Random90DegRot
 from load_data import get_dataset
-# from models import get_model
 
 import os
 import sys
-
-# working_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), "../")
-# os.chdir(working_dir)
-
-# lib_path = os.path.join(working_dir)
-# sys.path.append(lib_path)
 
 from classification.utils.initialize import select_dataset, select_model, select_optimizer, load_checkpoint
 from torch.nn import DataParallel
@@ -61,7 +54,6 @@ class CombinedLossHyp(nn.Module):
     
     def forward(self, predictions, targets):
         regr_preds = predictions[:,0]     
-        # regr_preds = torch.exp(regr_preds)       
         clf_preds = predictions[:, 1:]
         targets = targets.flatten()
         clf_targets = targets[1::2].long()
@@ -141,9 +133,6 @@ def train(args):
     net = select_model(img_dim, num_classes, args).to(device)
     device_tmp = [device + ':0']
     net = DataParallel(net, device_ids=device_tmp)
-    # model_path_hyp = f'{working_dir}/classification/good_models/best_L-ResNet18-brix.pth'
-    # checkpoint = torch.load(model_path_hyp, map_location=device)
-    # net_hyp.module.load_state_dict(checkpoint['model'], strict=True)
 
     n_params = 0
     for name, param in net.named_parameters():
@@ -175,9 +164,6 @@ def train(args):
     model_path = f'models/{save_path}.pt'
 
     if not args.eval_only:
-        # net = get_model(args, n_classes=n_classes).to(device)
-    
-        # print(net)
 
         optimizer, lr_scheduler = select_optimizer(net, args)
 
@@ -219,26 +205,21 @@ def train(args):
 
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                # zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward + backward + optimize
                 outputs = net(inputs)
 
                 if torch.isnan(outputs).any():
-                    print(f'output is a nan yo, {torch.isnan(inputs).sum()} NaNs, iteration {i}')
+                    print(f'Output is a NaN! {torch.isnan(inputs).sum()} NaNs, iteration {i}')
                     print(outputs)
                     break
 
                 loss = criterion(outputs, labels)
                 if torch.isnan(loss):
-                    print(f'loss {loss} is a nan at iter {i}, labels: {labels}')
+                    print(f'Loss {loss} is a NaN at iter {i}, labels: {labels}')
                     nan_ctr += 1
 
                 loss.backward()
-
-
-                # break
 
                 optimizer.step()
 
@@ -248,11 +229,9 @@ def train(args):
                     print(f'minibatch loss {loss.item()}')
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 100:.3f}')
                     running_loss = 0.0
-                
-                # print(loss.item())
-            
+
             # VALIDATION
-            eval_every_n_epochs = 1 #todo make into args?
+            eval_every_n_epochs = 1
             early_stopping_threshold = 5
 
             if epoch % eval_every_n_epochs == 0:
@@ -283,11 +262,6 @@ def train(args):
                             correct += (predicted == labels).sum().item()
 
                         predicted_labels += predicted.tolist()
-
-                        if first_minibatch:
-                            print(labels, predicted)
-                            print(outputs)
-                            first_minibatch = False
             
                 val_acc = correct / len(true_labels)
                 if args.classification and not args.combined_loss:
@@ -316,8 +290,6 @@ def train(args):
                             print(f'{early_stopping_threshold} consecutive validation epochs with worse loss, stopping training.')
                             break
                 
-
-    # net_euc.eval()
     net.eval()
     total_loss = 0.
     total_correct = 0
@@ -344,7 +316,6 @@ def train(args):
                 all_labels += clf_labels.tolist()
                 regr_labels += tmp_labels[::2].tolist()
                 _, predicted = torch.max(outputs[:, 1:], 1)
-                # regr_preds += torch.exp(outputs[:, 0]).flatten().tolist()
                 regr_preds += outputs[:, 0].flatten().tolist()
                 total_correct += (predicted == clf_labels).sum().item()
                 predicted_labels += predicted.tolist()
